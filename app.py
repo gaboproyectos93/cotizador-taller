@@ -11,7 +11,7 @@ import gspread
 from oauth2client.service_account import ServiceAccountCredentials
 
 # ==========================================
-# 1. CONFIGURACIÓN Y CONEXIÓN (HÍBRIDA)
+# 1. CONFIGURACIÓN Y CONEXIÓN
 # ==========================================
 st.set_page_config(page_title="Cotizador C.H. Servicio Automotriz", layout="wide", page_icon="🚘")
 
@@ -20,53 +20,42 @@ NOMBRE_HOJA_GOOGLE = "DB_Cotizador"
 def conectar_google_sheets():
     scope = ['https://spreadsheets.google.com/feeds', 'https://www.googleapis.com/auth/drive']
     try:
-        # 1. INTENTO: NUBE (Streamlit Secrets)
         if "gcp_service_account" in st.secrets:
             creds_dict = st.secrets["gcp_service_account"]
             creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
-        # 2. INTENTO: LOCAL (Tu PC)
         elif os.path.exists('credentials.json'):
             creds = ServiceAccountCredentials.from_json_keyfile_name('credentials.json', scope)
         else:
             return None
-
         client = gspread.authorize(creds)
         return client 
     except Exception:
         return None
 
 # ==========================================
-# 2. LÓGICA DE CORRELATIVOS E HISTORIAL
+# 2. LÓGICA DE CORRELATIVOS
 # ==========================================
 def obtener_y_registrar_correlativo(patente, cliente, total):
     client = conectar_google_sheets()
     if client:
         try:
             spreadsheet = client.open(NOMBRE_HOJA_GOOGLE)
-            try:
-                worksheet_hist = spreadsheet.worksheet("Historial")
+            try: worksheet_hist = spreadsheet.worksheet("Historial")
             except:
                 worksheet_hist = spreadsheet.add_worksheet(title="Historial", rows="1000", cols="6")
                 worksheet_hist.append_row(["Fecha", "Hora", "Correlativo", "Patente", "Cliente", "Monto Total"])
             
-            datos_existentes = worksheet_hist.get_all_values()
-            # Si solo hay encabezado (1 fila), el siguiente es 1.
-            numero_actual = len(datos_existentes) 
+            datos = worksheet_hist.get_all_values()
+            numero_actual = len(datos) 
             correlativo_str = str(numero_actual).zfill(6)
-            
             ahora = datetime.now()
-            fecha = ahora.strftime("%d/%m/%Y")
-            hora = ahora.strftime("%H:%M:%S")
-            
-            worksheet_hist.append_row([fecha, hora, correlativo_str, patente, cliente, total])
+            worksheet_hist.append_row([ahora.strftime("%d/%m/%Y"), ahora.strftime("%H:%M:%S"), correlativo_str, patente, cliente, total])
             return correlativo_str
-        except Exception:
-            return "ERR-NUBE"
-    else:
-        return "OFFLINE"
+        except: return "ERR-NUBE"
+    else: return "OFFLINE"
 
 # ==========================================
-# 3. BASE DE DATOS PATENTES
+# 3. BASE DE DATOS Y PATENTES
 # ==========================================
 DB_PATENTES = {
     "CWKV42": "HOSPITAL PADRE LAS CASAS", "DLTL67": "SAMU", "FLJW92": "HOSPITAL TOLTEN",
@@ -91,13 +80,8 @@ def obtener_usuario_final(patente, tipo_cliente):
     patente_clean = patente.replace("-", "").replace(" ", "").upper()
     if tipo_cliente == "Gendarmería de Chile": return "GENDARMERÍA DE CHILE"
     elif tipo_cliente == "Cliente Particular": return "CLIENTE PARTICULAR"
-    else:
-        hospital = DB_PATENTES.get(patente_clean)
-        return hospital if hospital else "HOSPITAL [ESPECIFICAR]"
+    else: return DB_PATENTES.get(patente_clean, "HOSPITAL [ESPECIFICAR]")
 
-# ==========================================
-# 4. GESTIÓN DE PRECIOS Y DATOS
-# ==========================================
 DATOS_MAESTROS = """Categoria,Trabajo,Costo_SSAS,Venta_SSAS,Costo_Hosp,Venta_Hosp,Costo_Gend,Venta_Gend
 Cabina y Tablero,Reparación circuito eléctrico tablero,180000,252000,189000,264600,215800,291330
 Equipamiento y Radio,Cambiar sirena y parlante con accesorios,893700,1161810,600000,780000,895670,1164371
@@ -126,7 +110,7 @@ Climatización y Aire,Cambio válvula de expansión,0,0,0,0,165000,231000
 Climatización y Aire,Reparación de evaporador,0,0,0,0,480000,648000
 Climatización y Aire,Cambio de evaporador,0,0,0,0,480000,648000
 Carrocería y Vidrios,Lámina seguridad transparente parabrisas (4 micras),120000,168000,126000,176400,140000,196000
-Carrocería y Vidrios,Lámina seguridad 8 micras color (Ventana Puerta),75000,108750,78750,114187.5,70000,101500
+Carrocería y Vidrios,Lámina seguridad 8 micras color (Ventana Puerta),75000,108750,78750,114187.5,75000,101500
 Carrocería y Vidrios,Grabado de patente (Parabrisas/Ventanas/Espejos) x unidad,0,0,0,0,10000,14500
 Interior Sanitario,Goma para piso interior cabina (x metro),45000,63000,47250,66150,45000,65250
 Asientos y Tapiz,Reparación de tapices de asientos,65000,91000,68250,95550,65000,94250
@@ -167,10 +151,8 @@ def cargar_datos():
                 sheet.update([df_init.columns.values.tolist()] + df_init.values.tolist())
                 return df_init
             return pd.DataFrame(data)
-        except:
-            return pd.read_csv(io.StringIO(DATOS_MAESTROS))
-    else:
-        return pd.read_csv(io.StringIO(DATOS_MAESTROS))
+        except: return pd.read_csv(io.StringIO(DATOS_MAESTROS))
+    return pd.read_csv(io.StringIO(DATOS_MAESTROS))
 
 def guardar_nuevo_item(categoria, nombre, costo):
     client = conectar_google_sheets()
@@ -182,16 +164,14 @@ def guardar_nuevo_item(categoria, nombre, costo):
             venta_hosp = venta_ssas * 1.05
             costo_gend = costo
             venta_gend = costo * 1.40 
-            nueva_fila = [categoria, nombre, costo, venta_ssas, costo_hosp, venta_hosp, costo_gend, venta_gend]
-            sheet.append_row(nueva_fila)
+            sheet.append_row([categoria, nombre, costo, venta_ssas, costo_hosp, venta_hosp, costo_gend, venta_gend])
             st.cache_data.clear()
             return True
-        except:
-            return False
+        except: return False
     return False
 
 # ==========================================
-# 5. UTILS Y ESTILOS
+# 4. UTILS
 # ==========================================
 EMPRESA_NOMBRE = "C.H. SERVICIO AUTOMOTRIZ"
 RUT_EMPRESA = "13.961.700-2" 
@@ -212,17 +192,15 @@ def reset_session():
 def encontrar_imagen(nombre_base):
     extensiones = ['.jpg', '.png', '.jpeg', '.JPG', '.PNG']
     for ext in extensiones:
-        if os.path.exists(nombre_base + ext):
-            return nombre_base + ext
-        if os.path.exists(nombre_base.capitalize() + ext):
-            return nombre_base.capitalize() + ext
+        if os.path.exists(nombre_base + ext): return nombre_base + ext
+        if os.path.exists(nombre_base.capitalize() + ext): return nombre_base.capitalize() + ext
     return None
 
 st.markdown("""
 <style>
-    .stTabs [aria-selected="true"] { background-color: #0054a6 !important; color: white !important; border-radius: 5px; }
-    .stTabs [data-baseweb="tab"] { background-color: #f0f2f6; border-radius: 5px; color: #31333F; }
-    .stContainer { border: 1px solid rgba(128, 128, 128, 0.2); border-radius: 8px; padding: 10px; box-shadow: 0 2px 5px rgba(0,0,0,0.05); }
+    .stTabs [aria-selected="true"] { background-color: #0054a6 !important; color: white !important; }
+    .stTabs [data-baseweb="tab"] { background-color: #f0f2f6; color: #31333F; }
+    .stContainer { border: 1px solid rgba(128, 128, 128, 0.2); border-radius: 8px; padding: 10px; margin-bottom: 5px; }
     div[data-testid="stNumberInput"] input { max-width: 100px; text-align: center; }
     input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
 </style>
@@ -231,7 +209,7 @@ st.markdown("""
 df_precios = cargar_datos()
 
 # ==========================================
-# 6. CALCULADORA
+# 5. CALCULADORA
 # ==========================================
 def mostrar_calculadora_windows():
     calc_html = """<!DOCTYPE html><html><head><style>
@@ -262,7 +240,7 @@ def mostrar_calculadora_windows():
     components.html(calc_html, height=280)
 
 # ==========================================
-# 7. PDF
+# 6. PDF
 # ==========================================
 class PDF(FPDF):
     def __init__(self, logo_header=None, correlativo=""):
@@ -285,9 +263,7 @@ class PDF(FPDF):
         self.set_xy(130, 10); self.set_font('Arial', 'B', 14); self.set_text_color(20, 20, 60)
         
         titulo = "COTIZACIÓN" if self.is_official else "PRESUPUESTO"
-        if self.correlativo and self.correlativo != "BORRADOR":
-            titulo += f" N° {self.correlativo}"
-            
+        if self.correlativo and self.correlativo != "BORRADOR": titulo += f" N° {self.correlativo}"
         self.cell(70, 10, titulo, 1, 1, 'C')
         self.set_text_color(0,0,0); self.set_xy(130, 20); self.set_font('Arial', '', 10)
         self.cell(70, 8, f"Fecha: {datetime.now().strftime('%d/%m/%Y')}", 1, 1, 'C'); self.ln(20)
@@ -438,10 +414,11 @@ if tipo_cliente == "Cliente Particular":
     with tabs[0]:
         st.info("ℹ️ Modo Cliente Particular: Ingrese ítems manualmente.")
         with st.container():
-            c1, c2, c3 = st.columns([5.5, 1.5, 2], vertical_alignment="center")
+            c1, c2 = st.columns([7, 2], vertical_alignment="center")
             d_m = c1.text_input("Descripción del Trabajo")
-            q_m = c2.number_input("Cnt", min_value=0, value=1)
-            p_m = c3.number_input("Precio Unitario ($)", min_value=0, step=5000)
+            p_m = c1.number_input("Precio Unitario ($)", min_value=0, step=5000)
+            q_m = c2.number_input("Cantidad", min_value=0, value=1)
+            
             if 'lista_particular' not in st.session_state: st.session_state.lista_particular = []
             if st.button("Agregar Ítem"):
                 if d_m and q_m > 0 and p_m > 0:
@@ -468,25 +445,32 @@ else:
             else:
                 for index, row in items_validos.iterrows():
                     with st.container(): 
-                        # AQUI ESTA LA MAGIA DE LA ALINEACION
-                        c1, c2, c3 = st.columns([5.5, 1.5, 2], vertical_alignment="center")
-                        with c1: st.markdown(f"**{row['Trabajo']}**")
+                        # DISEÑO 2 COLUMNAS (TEXTO+PRECIO | CANTIDAD)
+                        c1, c2 = st.columns([7, 2], vertical_alignment="center")
+                        
+                        # Columna 1: Nombre y Precio
+                        if is_admin: precio_texto = f"V: {format_clp(row[col_v_db])} | C: {format_clp(row[col_c_db])}"
+                        else: precio_texto = f"💰 {format_clp(row[col_c_db])}"
+                        
+                        c1.markdown(f"**{row['Trabajo']}**")
+                        c1.markdown(f"*{precio_texto}*") # Precio justo abajo del nombre
+                        
+                        # Columna 2: Selector
                         key_input = f"q_{row['Trabajo']}_{index}"
                         val = st.session_state.get(key_input, 0)
-                        qty = c2.number_input("", 0, 20, value=val, key=key_input, label_visibility="collapsed")
-                        with c3:
-                            if is_admin: st.caption(f"V: {format_clp(row[col_v_db])}"); st.caption(f"C: {format_clp(row[col_c_db])}")
-                            else: st.markdown(f"**{format_clp(row[col_c_db])}**")
+                        qty = c2.number_input("", 0, 20, value=val, key=key_input, label_visibility="collapsed") # SIN ETIQUETA
+                        
                         if qty > 0:
                             seleccion_final.append({"Descripción": row['Trabajo'], "Cantidad": qty, "Unitario_Costo": row[col_c_db], "Total_Costo": row[col_c_db]*qty, "Unitario_Venta": row[col_v_db], "Total_Venta": row[col_v_db]*qty})
 
     with tabs[-1]:
         with st.container():
             st.subheader("Item Temporal")
-            c1, c2, c3 = st.columns([5.5, 1.5, 2], vertical_alignment="center")
+            c1, c2 = st.columns([7, 2], vertical_alignment="center")
             d_m = c1.text_input("Descripción")
+            p_m = c1.number_input("Precio Unitario ($)", min_value=0, step=5000)
             q_m = c2.number_input("Cant", 0, key="mq")
-            p_m = c3.number_input("Precio Unitario", 0, step=5000)
+            
             if d_m and q_m > 0 and p_m > 0:
                 seleccion_final.append({"Descripción": f"(Extra) {d_m}", "Cantidad": q_m, "Unitario_Costo": p_m, "Total_Costo": p_m*q_m, "Unitario_Venta": p_m*1.35, "Total_Venta": (p_m*1.35)*q_m})
 
@@ -503,26 +487,20 @@ if seleccion_final:
         k3.metric("IVA (19%)", format_clp(iva))
         k4.metric("Total Factura", format_clp(total_venta + iva))
         
-        # LOGICA DE GENERACION Y GUARDADO
         if 'presupuesto_generado' not in st.session_state:
             if st.button("💾 FINALIZAR Y GENERAR PRESUPUESTO", type="primary"):
                 if patente_input:
                     correlativo = obtener_y_registrar_correlativo(patente_input, usuario_final_txt, format_clp(total_venta + iva))
                     pdf_bytes = generar_pdf_exacto(patente_input, modelo_input, usuario_final_txt, seleccion_final, total_venta, True, watermark_file, estado_trabajo, usuario_final_txt, observaciones_txt, correlativo)
                     
-                    st.session_state['presupuesto_generado'] = {
-                        'pdf': pdf_bytes,
-                        'nombre': f"Presupuesto {correlativo} - {patente_input} - {usuario_final_txt}.pdf"
-                    }
+                    st.session_state['presupuesto_generado'] = {'pdf': pdf_bytes, 'nombre': f"Presupuesto {correlativo}.pdf"}
                     st.rerun()
-                else:
-                    st.error("Falta ingresar la patente.")
+                else: st.error("Falta ingresar la patente.")
         else:
             data = st.session_state['presupuesto_generado']
-            st.success(f"✅ Presupuesto Generado Exitosamente: {data['nombre']}")
+            st.success(f"✅ Listo: {data['nombre']}")
             st.download_button("📥 DESCARGAR PDF", data['pdf'], data['nombre'], "application/pdf", type="primary", use_container_width=True)
-            if st.button("🔄 Crear Nueva Cotización"):
-                reset_session()
+            if st.button("🔄 Nueva Cotización"): reset_session()
 
     else:
         k1, k2, k3 = st.columns(3)
@@ -531,23 +509,17 @@ if seleccion_final:
         k2.metric("IVA (19%)", format_clp(iva))
         k3.metric("TOTAL A PAGAR", format_clp(total_costo + iva))
         
-        # MISMA LÓGICA PARA MODO PROVEEDOR
         if 'presupuesto_generado' not in st.session_state:
             if st.button("💾 FINALIZAR Y GENERAR PRESUPUESTO", type="primary"):
                 if patente_input:
                     correlativo = obtener_y_registrar_correlativo(patente_input, usuario_final_txt, format_clp(total_costo + iva))
                     pdf_bytes = generar_pdf_exacto(patente_input, modelo_input, "Kaufmann S.A.", seleccion_final, total_costo, False, watermark_file, estado_trabajo, usuario_final_txt, observaciones_txt, correlativo)
                     
-                    st.session_state['presupuesto_generado'] = {
-                        'pdf': pdf_bytes,
-                        'nombre': f"Presupuesto {correlativo} - {patente_input} - {usuario_final_txt}.pdf"
-                    }
+                    st.session_state['presupuesto_generado'] = {'pdf': pdf_bytes, 'nombre': f"Presupuesto {correlativo}.pdf"}
                     st.rerun()
-                else:
-                    st.error("Falta ingresar la patente.")
+                else: st.error("Falta ingresar la patente.")
         else:
             data = st.session_state['presupuesto_generado']
-            st.success(f"✅ Presupuesto Generado Exitosamente: {data['nombre']}")
+            st.success(f"✅ Listo: {data['nombre']}")
             st.download_button("📥 DESCARGAR PDF", data['pdf'], data['nombre'], "application/pdf", type="primary", use_container_width=True)
-            if st.button("🔄 Crear Nueva Cotización"):
-                reset_session()
+            if st.button("🔄 Nueva Cotización"): reset_session()
