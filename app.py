@@ -8,8 +8,8 @@ from fpdf import FPDF
 from datetime import datetime
 import time
 import gspread
-import re
 from oauth2client.service_account import ServiceAccountCredentials
+from PIL import Image # LIBRERÍA PARA GESTIONAR IMÁGENES
 
 # ==========================================
 # 1. CONFIGURACIÓN Y CONEXIÓN
@@ -204,7 +204,7 @@ def format_clp(value):
     except: return "$0"
 
 def reset_session():
-    # BORRAMOS TAMBIEN LA LISTA DE MANUALES EXTRA
+    # Limpieza total, incluyendo fotos
     for key in list(st.session_state.keys()):
         if key.startswith("q_") or key == "mq" or key == "lista_particular" or key == "items_manuales_extra" or key == "presupuesto_generado":
             del st.session_state[key]
@@ -297,7 +297,7 @@ class PDF(FPDF):
         else:
             self.cell(0, 5, "Kaufmann S.A. - Líderes en Movilidad", 0, 1, 'C')
 
-def generar_pdf_exacto(patente, modelo, cliente_nombre, items, total_neto, is_official, watermark_file, estado_trabajo, usuario_final_txt, observaciones, correlativo):
+def generar_pdf_exacto(patente, modelo, cliente_nombre, items, total_neto, is_official, watermark_file, estado_trabajo, usuario_final_txt, observaciones, correlativo, fotos_adjuntas):
     pdf = PDF(logo_header=watermark_file, correlativo=correlativo)
     pdf.is_official = is_official 
     pdf.add_page(); pdf.set_auto_page_break(auto=True, margin=30) 
@@ -361,6 +361,43 @@ def generar_pdf_exacto(patente, modelo, cliente_nombre, items, total_neto, is_of
     pdf.ln(5); pdf.cell(0, 6, f"Padre las Casas, {fecha}", 0, 1, 'C')
     firmante = "KAUFMANN S.A." if is_official else EMPRESA_NOMBRE
     pdf.ln(5); pdf.cell(0, 5, firmante, 0, 1, 'C')
+
+    # --- PÁGINA DE FOTOS ---
+    if fotos_adjuntas:
+        pdf.add_page()
+        pdf.set_font('Arial', 'B', 14); pdf.set_text_color(20, 20, 60)
+        pdf.cell(0, 10, "REGISTRO FOTOGRÁFICO", 0, 1, 'C')
+        pdf.ln(5)
+        
+        # Guardar fotos temporalmente y agregarlas
+        for i, foto_uploaded in enumerate(fotos_adjuntas):
+            try:
+                # Abrir y comprimir
+                img = Image.open(foto_uploaded)
+                img = img.convert('RGB')
+                # Redimensionar si es muy grande (ej > 1000px)
+                if img.width > 1000:
+                    ratio = 1000 / img.width
+                    img = img.resize((1000, int(img.height * ratio)))
+                
+                temp_filename = f"temp_img_{i}.jpg"
+                img.save(temp_filename, quality=50, optimize=True) # Compresión JPG
+                
+                # Calcular posición centrada
+                # A4 ancho = 210mm. Margen = 10mm. Área útil = 190mm.
+                # Si ponemos la imagen de 150mm de ancho:
+                x_pos = (210 - 150) / 2
+                
+                # Verificar si cabe en la página
+                if pdf.get_y() > 200: pdf.add_page()
+                
+                pdf.image(temp_filename, x=x_pos, w=150)
+                pdf.ln(5)
+                
+                os.remove(temp_filename) # Limpiar archivo
+            except Exception as e:
+                st.error(f"Error al procesar imagen {i+1}: {e}")
+
     return pdf.output(dest='S').encode('latin-1')
 
 # ==========================================
@@ -387,6 +424,12 @@ with st.sidebar:
     usuario_final_sugerido, tipo_cliente_auto = obtener_datos_por_patente(patente_input, tipo_cliente)
     usuario_final_txt = st.text_input("Usuario Final / Hospital:", value=usuario_final_sugerido)
     observaciones_txt = st.text_area("Notas / Observaciones:", height=100)
+    
+    # SECCIÓN FOTOS
+    st.markdown("---")
+    st.markdown("### 📸 Fotografías")
+    fotos_adjuntas = st.file_uploader("Adjuntar evidencia (se comprimirán autom.)", accept_multiple_files=True, type=['jpg', 'png', 'jpeg'])
+    
     estado_trabajo = st.radio("Estado del Trabajo:", ("En Espera de Aprobación", "Trabajo Realizado"))
     
     st.divider()
@@ -481,11 +524,9 @@ else:
             st.subheader("Item Temporal")
             
             # NUEVO DISEÑO PARA LA PESTAÑA MANUAL / TEMPORAL
-            # Usamos lista en session_state para acumular items
             if 'items_manuales_extra' not in st.session_state:
                 st.session_state.items_manuales_extra = []
             
-            # Inputs
             c1, c2, c3 = st.columns([5.5, 1.5, 2], vertical_alignment="center")
             d_m = c1.text_input("Descripción del Trabajo (Manual)")
             q_m = c2.number_input("Cant.", min_value=1, value=1, key="mq")
@@ -494,18 +535,11 @@ else:
             if st.button("Agregar Ítem Manual"):
                 if d_m and p_m > 0:
                     st.session_state.items_manuales_extra.append({
-                        "Descripción": f"(Extra) {d_m}",
-                        "Cantidad": q_m,
-                        "Unitario_Costo": p_m,
-                        "Total_Costo": p_m * q_m,
-                        "Unitario_Venta": p_m * 1.35, # Margen sugerido
-                        "Total_Venta": (p_m * 1.35) * q_m
+                        "Descripción": f"(Extra) {d_m}", "Cantidad": q_m, "Unitario_Costo": p_m, "Total_Costo": p_m * q_m, "Unitario_Venta": p_m * 1.35, "Total_Venta": (p_m * 1.35) * q_m
                     })
                     st.success(f"Agregado: {d_m}")
-                else:
-                    st.warning("Ingrese descripción y precio")
+                else: st.warning("Ingrese descripción y precio")
 
-            # Mostrar tabla de items agregados
             if st.session_state.items_manuales_extra:
                 st.markdown("---")
                 st.markdown("###### Ítems Manuales Agregados:")
@@ -513,10 +547,8 @@ else:
                     st.text(f"• {item['Cantidad']}x {item['Descripción']} - {format_clp(item['Total_Costo'])}")
                 
                 if st.button("Limpiar Manuales"):
-                    st.session_state.items_manuales_extra = []
-                    st.rerun()
+                    st.session_state.items_manuales_extra = []; st.rerun()
                 
-                # Sumar estos items a la seleccion final
                 seleccion_final.extend(st.session_state.items_manuales_extra)
 
 if seleccion_final:
@@ -536,7 +568,7 @@ if seleccion_final:
             if st.button("💾 FINALIZAR Y GENERAR PRESUPUESTO", type="primary"):
                 if patente_input:
                     correlativo = obtener_y_registrar_correlativo(patente_input, usuario_final_txt, format_clp(total_venta + iva))
-                    pdf_bytes = generar_pdf_exacto(patente_input, modelo_input, usuario_final_txt, seleccion_final, total_venta, True, watermark_file, estado_trabajo, usuario_final_txt, observaciones_txt, correlativo)
+                    pdf_bytes = generar_pdf_exacto(patente_input, modelo_input, usuario_final_txt, seleccion_final, total_venta, True, watermark_file, estado_trabajo, usuario_final_txt, observaciones_txt, correlativo, fotos_adjuntas)
                     st.session_state['presupuesto_generado'] = {'pdf': pdf_bytes, 'nombre': f"Presupuesto {correlativo} - {patente_input}.pdf"}
                     st.rerun()
                 else: st.error("Falta ingresar la patente.")
@@ -557,7 +589,7 @@ if seleccion_final:
             if st.button("💾 FINALIZAR Y GENERAR PRESUPUESTO", type="primary"):
                 if patente_input:
                     correlativo = obtener_y_registrar_correlativo(patente_input, usuario_final_txt, format_clp(total_costo + iva))
-                    pdf_bytes = generar_pdf_exacto(patente_input, modelo_input, "Kaufmann S.A.", seleccion_final, total_costo, False, watermark_file, estado_trabajo, usuario_final_txt, observaciones_txt, correlativo)
+                    pdf_bytes = generar_pdf_exacto(patente_input, modelo_input, "Kaufmann S.A.", seleccion_final, total_costo, False, watermark_file, estado_trabajo, usuario_final_txt, observaciones_txt, correlativo, fotos_adjuntas)
                     st.session_state['presupuesto_generado'] = {'pdf': pdf_bytes, 'nombre': f"Presupuesto {correlativo} - {patente_input}.pdf"}
                     st.rerun()
                 else: st.error("Falta ingresar la patente.")
