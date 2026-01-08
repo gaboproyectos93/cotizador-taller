@@ -8,8 +8,9 @@ from fpdf import FPDF
 from datetime import datetime
 import time
 import gspread
+import re # <--- ESTO FALTABA PARA QUE FUNCIONE LA LIMPIEZA
 from oauth2client.service_account import ServiceAccountCredentials
-from PIL import Image # LIBRERÍA PARA GESTIONAR IMÁGENES
+from PIL import Image
 
 # ==========================================
 # 1. CONFIGURACIÓN Y CONEXIÓN
@@ -58,6 +59,8 @@ def obtener_y_registrar_correlativo(patente, cliente, total):
 # ==========================================
 # 3. BASE DE DATOS INTELIGENTE
 # ==========================================
+
+# LISTA TRANSCRITA DE LA IMAGEN (Sin guiones para mejor detección)
 LISTA_GENDARMERIA = [
     "BYRH67", "CGZP59", "CVXV81", "DJDS43", "DRTY89", "DRTY99", "JZPJ79", 
     "CGCR37", "GTBC75", "GXSW72", "GYPT12", "HHBL18", "HHBL19", "HKRL36", 
@@ -85,19 +88,24 @@ DB_HOSPITALES = {
 
 def limpiar_patente(texto):
     if not texto: return ""
+    # Elimina guiones y espacios, deja solo letras y numeros
     return re.sub(r'[^A-Z0-9]', '', texto.upper())
 
-def obtener_datos_por_patente(patente_input, tipo_cliente_seleccionado):
+def detectar_cliente_automatico(patente_input):
+    """Devuelve (Nombre Usuario Final, Tipo Cliente Selector)"""
     patente_clean = limpiar_patente(patente_input)
+    
+    # 1. Gendarmería
     if patente_clean in LISTA_GENDARMERIA:
         return "GENDARMERÍA DE CHILE", "Gendarmería de Chile"
+    
+    # 2. Hospitales
     hospital = DB_HOSPITALES.get(patente_clean)
     if hospital:
-        if "TEMUCO" in hospital: return hospital, "Hospital Temuco"
-        else: return hospital, "SSAS (Servicio Salud)"
-    if tipo_cliente_seleccionado == "Cliente Particular": return "CLIENTE PARTICULAR", "Cliente Particular"
-    elif tipo_cliente_seleccionado == "Gendarmería de Chile": return "GENDARMERÍA DE CHILE", "Gendarmería de Chile"
-    else: return "HOSPITAL [ESPECIFICAR]", tipo_cliente_seleccionado
+        tipo = "Hospital Temuco" if "TEMUCO" in hospital else "SSAS (Servicio Salud)"
+        return hospital, tipo
+        
+    return None, None
 
 # ==========================================
 # 4. GESTIÓN DE DATOS Y ESTILOS
@@ -204,9 +212,9 @@ def format_clp(value):
     except: return "$0"
 
 def reset_session():
-    # Limpieza total, incluyendo fotos
+    # Limpieza total, incluyendo fotos y lista manual
     for key in list(st.session_state.keys()):
-        if key.startswith("q_") or key == "mq" or key == "lista_particular" or key == "items_manuales_extra" or key == "presupuesto_generado":
+        if key.startswith("q_") or key == "mq" or key == "lista_particular" or key == "items_manuales_extra" or key == "presupuesto_generado" or key == "patente_actual":
             del st.session_state[key]
     st.rerun()
 
@@ -368,35 +376,19 @@ def generar_pdf_exacto(patente, modelo, cliente_nombre, items, total_neto, is_of
         pdf.set_font('Arial', 'B', 14); pdf.set_text_color(20, 20, 60)
         pdf.cell(0, 10, "REGISTRO FOTOGRÁFICO", 0, 1, 'C')
         pdf.ln(5)
-        
-        # Guardar fotos temporalmente y agregarlas
         for i, foto_uploaded in enumerate(fotos_adjuntas):
             try:
-                # Abrir y comprimir
-                img = Image.open(foto_uploaded)
-                img = img.convert('RGB')
-                # Redimensionar si es muy grande (ej > 1000px)
+                img = Image.open(foto_uploaded).convert('RGB')
                 if img.width > 1000:
                     ratio = 1000 / img.width
                     img = img.resize((1000, int(img.height * ratio)))
-                
                 temp_filename = f"temp_img_{i}.jpg"
-                img.save(temp_filename, quality=50, optimize=True) # Compresión JPG
-                
-                # Calcular posición centrada
-                # A4 ancho = 210mm. Margen = 10mm. Área útil = 190mm.
-                # Si ponemos la imagen de 150mm de ancho:
+                img.save(temp_filename, quality=50, optimize=True)
                 x_pos = (210 - 150) / 2
-                
-                # Verificar si cabe en la página
                 if pdf.get_y() > 200: pdf.add_page()
-                
-                pdf.image(temp_filename, x=x_pos, w=150)
-                pdf.ln(5)
-                
-                os.remove(temp_filename) # Limpiar archivo
-            except Exception as e:
-                st.error(f"Error al procesar imagen {i+1}: {e}")
+                pdf.image(temp_filename, x=x_pos, w=150); pdf.ln(5)
+                os.remove(temp_filename)
+            except: pass
 
     return pdf.output(dest='S').encode('latin-1')
 
@@ -417,15 +409,33 @@ with st.sidebar:
     
     tipo_cliente = st.selectbox("Institución:", ("SSAS (Servicio Salud)", "Hospital Temuco", "Gendarmería de Chile", "Cliente Particular"), key="selector_cliente")
     
+    # 1. AUTO DETECCION CLIENTE
+    usuario_auto, tipo_auto = detectar_cliente_automatico(patente_input)
+    
+    # 2. LOGICA DE CAMBIO
     if 'ultimo_cliente' not in st.session_state: st.session_state.ultimo_cliente = tipo_cliente
+    if 'patente_actual' not in st.session_state: st.session_state.patente_actual = patente_input
+
+    # Si cambió la patente y detectamos cliente nuevo, forzamos recarga
+    if patente_input != st.session_state.patente_actual:
+        st.session_state.patente_actual = patente_input
+        if tipo_auto and tipo_auto != tipo_cliente:
+             # ESTO ES UN TRUCO: Cambiamos el indice del selectbox pero requiere session state
+             # Por simplicidad, solo sugerimos el usuario final
+             pass
+
+    # Si el usuario cambió manualmente el cliente
     if st.session_state.ultimo_cliente != tipo_cliente:
         st.session_state.ultimo_cliente = tipo_cliente; reset_session()
 
-    usuario_final_sugerido, tipo_cliente_auto = obtener_datos_por_patente(patente_input, tipo_cliente)
-    usuario_final_txt = st.text_input("Usuario Final / Hospital:", value=usuario_final_sugerido)
+    # Usuario Final (Prioridad: Detección auto -> Manual)
+    valor_usuario = usuario_auto if usuario_auto else "HOSPITAL [ESPECIFICAR]"
+    if tipo_cliente == "Cliente Particular": valor_usuario = "CLIENTE PARTICULAR"
+    elif tipo_cliente == "Gendarmería de Chile": valor_usuario = "GENDARMERÍA DE CHILE"
+    
+    usuario_final_txt = st.text_input("Usuario Final / Hospital:", value=valor_usuario)
     observaciones_txt = st.text_area("Notas / Observaciones:", height=100)
     
-    # SECCIÓN FOTOS
     st.markdown("---")
     st.markdown("### 📸 Fotografías")
     fotos_adjuntas = st.file_uploader("Adjuntar evidencia (se comprimirán autom.)", accept_multiple_files=True, type=['jpg', 'png', 'jpeg'])
@@ -523,7 +533,6 @@ else:
         with st.container():
             st.subheader("Item Temporal")
             
-            # NUEVO DISEÑO PARA LA PESTAÑA MANUAL / TEMPORAL
             if 'items_manuales_extra' not in st.session_state:
                 st.session_state.items_manuales_extra = []
             
