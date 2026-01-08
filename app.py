@@ -8,6 +8,7 @@ from fpdf import FPDF
 from datetime import datetime
 import time
 import gspread
+import re  # Importamos expresiones regulares para limpiar patentes
 from oauth2client.service_account import ServiceAccountCredentials
 
 # ==========================================
@@ -55,9 +56,17 @@ def obtener_y_registrar_correlativo(patente, cliente, total):
     else: return "OFFLINE"
 
 # ==========================================
-# 3. BASE DE DATOS Y PATENTES
+# 3. BASE DE DATOS INTELIGENTE (HOSPITALES Y GENDARMERÍA)
 # ==========================================
-DB_PATENTES = {
+
+# Lista de Patentes Gendarmería (Normalizadas sin guiones)
+LISTA_GENDARMERIA = [
+    "BYRH67", "CGZP59", "CVXV81", "DJDS43", "DRTY89", "DRTY99", "JZPJ79", 
+    "CGCR37", "GTBC75", "GXSW72", "GYPT12", "HHBL18", "HHBL19", "HKRL36", 
+    "HKRL50", "JBDP22", "JBDP23"
+]
+
+DB_HOSPITALES = {
     "CWKV42": "HOSPITAL PADRE LAS CASAS", "DLTL67": "SAMU", "FLJW92": "HOSPITAL TOLTEN",
     "GRCH58": "HOSPITAL LONCOCHE", "GXTD94": "HOSPITAL CUNCO", "GXTD96": "HOSPITAL MIRAFLORES",
     "HKPH64": "HOSPITAL CUNCO", "HKPH65": "HOSPITAL TOLTEN", "HKPH66": "HOSPITAL GALVARINO",
@@ -76,12 +85,38 @@ DB_PATENTES = {
     "SHLF84": "HOSPITAL TEMUCO", "SHLF85": "HOSPITAL GORBEA", "SYTG24": "HOSPITAL NUEVA IMPERIAL"
 }
 
-def obtener_usuario_final(patente, tipo_cliente):
-    patente_clean = patente.replace("-", "").replace(" ", "").upper()
-    if tipo_cliente == "Gendarmería de Chile": return "GENDARMERÍA DE CHILE"
-    elif tipo_cliente == "Cliente Particular": return "CLIENTE PARTICULAR"
-    else: return DB_PATENTES.get(patente_clean, "HOSPITAL [ESPECIFICAR]")
+def limpiar_patente(texto):
+    """Elimina todo lo que no sea letra o número y convierte a mayúscula"""
+    if not texto: return ""
+    return re.sub(r'[^A-Z0-9]', '', texto.upper())
 
+def obtener_datos_por_patente(patente_input, tipo_cliente_seleccionado):
+    patente_clean = limpiar_patente(patente_input)
+    
+    # 1. Buscamos en Gendarmería
+    if patente_clean in LISTA_GENDARMERIA:
+        return "GENDARMERÍA DE CHILE", "Gendarmería de Chile" # (Usuario Final, Tipo Cliente Sugerido)
+    
+    # 2. Buscamos en Hospitales
+    hospital = DB_HOSPITALES.get(patente_clean)
+    if hospital:
+        # Definir si es SSAS o Hospital Temuco según el nombre
+        if "TEMUCO" in hospital:
+            return hospital, "Hospital Temuco"
+        else:
+            return hospital, "SSAS (Servicio Salud)"
+            
+    # 3. Si no encuentra nada, devuelve lo que estaba seleccionado manualmente
+    if tipo_cliente_seleccionado == "Cliente Particular":
+        return "CLIENTE PARTICULAR", "Cliente Particular"
+    elif tipo_cliente_seleccionado == "Gendarmería de Chile":
+        return "GENDARMERÍA DE CHILE", "Gendarmería de Chile"
+    else:
+        return "HOSPITAL [ESPECIFICAR]", tipo_cliente_seleccionado
+
+# ==========================================
+# 4. DATOS MAESTROS Y GESTIÓN
+# ==========================================
 DATOS_MAESTROS = """Categoria,Trabajo,Costo_SSAS,Venta_SSAS,Costo_Hosp,Venta_Hosp,Costo_Gend,Venta_Gend
 Cabina y Tablero,Reparación circuito eléctrico tablero,180000,252000,189000,264600,215800,291330
 Equipamiento y Radio,Cambiar sirena y parlante con accesorios,893700,1161810,600000,780000,895670,1164371
@@ -151,8 +186,10 @@ def cargar_datos():
                 sheet.update([df_init.columns.values.tolist()] + df_init.values.tolist())
                 return df_init
             return pd.DataFrame(data)
-        except: return pd.read_csv(io.StringIO(DATOS_MAESTROS))
-    return pd.read_csv(io.StringIO(DATOS_MAESTROS))
+        except:
+            return pd.read_csv(io.StringIO(DATOS_MAESTROS))
+    else:
+        return pd.read_csv(io.StringIO(DATOS_MAESTROS))
 
 def guardar_nuevo_item(categoria, nombre, costo):
     client = conectar_google_sheets()
@@ -171,7 +208,7 @@ def guardar_nuevo_item(categoria, nombre, costo):
     return False
 
 # ==========================================
-# 4. UTILS
+# 5. UTILS Y ESTILOS
 # ==========================================
 EMPRESA_NOMBRE = "C.H. SERVICIO AUTOMOTRIZ"
 RUT_EMPRESA = "13.961.700-2" 
@@ -209,7 +246,7 @@ st.markdown("""
 df_precios = cargar_datos()
 
 # ==========================================
-# 5. CALCULADORA
+# 6. CALCULADORA
 # ==========================================
 def mostrar_calculadora_windows():
     calc_html = """<!DOCTYPE html><html><head><style>
@@ -240,7 +277,7 @@ def mostrar_calculadora_windows():
     components.html(calc_html, height=280)
 
 # ==========================================
-# 6. PDF
+# 7. PDF
 # ==========================================
 class PDF(FPDF):
     def __init__(self, logo_header=None, correlativo=""):
@@ -359,12 +396,23 @@ with st.sidebar:
     
     tipo_cliente = st.selectbox("Institución:", ("SSAS (Servicio Salud)", "Hospital Temuco", "Gendarmería de Chile", "Cliente Particular"), key="selector_cliente")
     
+    # Check si cambió el cliente para limpiar automáticamente
     if 'ultimo_cliente' not in st.session_state: st.session_state.ultimo_cliente = tipo_cliente
     if st.session_state.ultimo_cliente != tipo_cliente:
-        st.session_state.ultimo_cliente = tipo_cliente; reset_session()
+        st.session_state.ultimo_cliente = tipo_cliente
+        reset_session()
 
-    usuario_final_sugerido = obtener_usuario_final(patente_input, tipo_cliente)
-    usuario_final_txt = st.text_input("Usuario Final / Hospital:", value=usuario_final_sugerido)
+    # Detección Automática de Cliente
+    usuario_final_auto, tipo_cliente_auto = obtener_datos_por_patente(patente_input, tipo_cliente)
+    
+    # Si detectamos una patente conocida, podemos forzar el selector
+    if tipo_cliente_auto != tipo_cliente and patente_input:
+        # Esto es opcional, pero ayuda a que se ponga verde/azul solo
+        # st.rerun() si quisiéramos forzar el cambio de selectbox, pero es complejo en Streamlit.
+        # Por ahora solo sugerimos el texto del hospital.
+        pass
+
+    usuario_final_txt = st.text_input("Usuario Final / Hospital:", value=usuario_final_auto)
     observaciones_txt = st.text_area("Notas / Observaciones:", height=100)
     estado_trabajo = st.radio("Estado del Trabajo:", ("En Espera de Aprobación", "Trabajo Realizado"))
     
@@ -414,11 +462,10 @@ if tipo_cliente == "Cliente Particular":
     with tabs[0]:
         st.info("ℹ️ Modo Cliente Particular: Ingrese ítems manualmente.")
         with st.container():
-            c1, c2 = st.columns([7, 2], vertical_alignment="center")
+            c1, c2, c3 = st.columns([5.5, 1.5, 2], vertical_alignment="center")
             d_m = c1.text_input("Descripción del Trabajo")
-            p_m = c1.number_input("Precio Unitario ($)", min_value=0, step=5000)
-            q_m = c2.number_input("Cantidad", min_value=0, value=1)
-            
+            q_m = c2.number_input("Cnt", min_value=0, value=1)
+            p_m = c3.number_input("Precio Unitario ($)", min_value=0, step=5000)
             if 'lista_particular' not in st.session_state: st.session_state.lista_particular = []
             if st.button("Agregar Ítem"):
                 if d_m and q_m > 0 and p_m > 0:
@@ -445,32 +492,24 @@ else:
             else:
                 for index, row in items_validos.iterrows():
                     with st.container(): 
-                        # DISEÑO 2 COLUMNAS (TEXTO+PRECIO | CANTIDAD)
-                        c1, c2 = st.columns([7, 2], vertical_alignment="center")
-                        
-                        # Columna 1: Nombre y Precio
-                        if is_admin: precio_texto = f"V: {format_clp(row[col_v_db])} | C: {format_clp(row[col_c_db])}"
-                        else: precio_texto = f"💰 {format_clp(row[col_c_db])}"
-                        
-                        c1.markdown(f"**{row['Trabajo']}**")
-                        c1.markdown(f"*{precio_texto}*") # Precio justo abajo del nombre
-                        
-                        # Columna 2: Selector
+                        c1, c2, c3 = st.columns([5.5, 1.5, 2], vertical_alignment="center")
+                        with c1: st.markdown(f"**{row['Trabajo']}**")
                         key_input = f"q_{row['Trabajo']}_{index}"
                         val = st.session_state.get(key_input, 0)
-                        qty = c2.number_input("", 0, 20, value=val, key=key_input, label_visibility="collapsed") # SIN ETIQUETA
-                        
+                        qty = c2.number_input("", 0, 20, value=val, key=key_input, label_visibility="collapsed")
+                        with c3:
+                            if is_admin: st.caption(f"V: {format_clp(row[col_v_db])}"); st.caption(f"C: {format_clp(row[col_c_db])}")
+                            else: st.markdown(f"**{format_clp(row[col_c_db])}**")
                         if qty > 0:
                             seleccion_final.append({"Descripción": row['Trabajo'], "Cantidad": qty, "Unitario_Costo": row[col_c_db], "Total_Costo": row[col_c_db]*qty, "Unitario_Venta": row[col_v_db], "Total_Venta": row[col_v_db]*qty})
 
     with tabs[-1]:
         with st.container():
             st.subheader("Item Temporal")
-            c1, c2 = st.columns([7, 2], vertical_alignment="center")
+            c1, c2, c3 = st.columns([5.5, 1.5, 2], vertical_alignment="center")
             d_m = c1.text_input("Descripción")
-            p_m = c1.number_input("Precio Unitario ($)", min_value=0, step=5000)
             q_m = c2.number_input("Cant", 0, key="mq")
-            
+            p_m = c3.number_input("Precio Unitario", 0, step=5000)
             if d_m and q_m > 0 and p_m > 0:
                 seleccion_final.append({"Descripción": f"(Extra) {d_m}", "Cantidad": q_m, "Unitario_Costo": p_m, "Total_Costo": p_m*q_m, "Unitario_Venta": p_m*1.35, "Total_Venta": (p_m*1.35)*q_m})
 
@@ -493,14 +532,19 @@ if seleccion_final:
                     correlativo = obtener_y_registrar_correlativo(patente_input, usuario_final_txt, format_clp(total_venta + iva))
                     pdf_bytes = generar_pdf_exacto(patente_input, modelo_input, usuario_final_txt, seleccion_final, total_venta, True, watermark_file, estado_trabajo, usuario_final_txt, observaciones_txt, correlativo)
                     
-                    st.session_state['presupuesto_generado'] = {'pdf': pdf_bytes, 'nombre': f"Presupuesto {correlativo}.pdf"}
+                    st.session_state['presupuesto_generado'] = {
+                        'pdf': pdf_bytes,
+                        'nombre': f"Presupuesto {correlativo} - {patente_input} - {usuario_final_txt}.pdf"
+                    }
                     st.rerun()
-                else: st.error("Falta ingresar la patente.")
+                else:
+                    st.error("Falta ingresar la patente.")
         else:
             data = st.session_state['presupuesto_generado']
-            st.success(f"✅ Listo: {data['nombre']}")
+            st.success(f"✅ Presupuesto Generado Exitosamente: {data['nombre']}")
             st.download_button("📥 DESCARGAR PDF", data['pdf'], data['nombre'], "application/pdf", type="primary", use_container_width=True)
-            if st.button("🔄 Nueva Cotización"): reset_session()
+            if st.button("🔄 Crear Nueva Cotización"):
+                reset_session()
 
     else:
         k1, k2, k3 = st.columns(3)
@@ -515,11 +559,16 @@ if seleccion_final:
                     correlativo = obtener_y_registrar_correlativo(patente_input, usuario_final_txt, format_clp(total_costo + iva))
                     pdf_bytes = generar_pdf_exacto(patente_input, modelo_input, "Kaufmann S.A.", seleccion_final, total_costo, False, watermark_file, estado_trabajo, usuario_final_txt, observaciones_txt, correlativo)
                     
-                    st.session_state['presupuesto_generado'] = {'pdf': pdf_bytes, 'nombre': f"Presupuesto {correlativo}.pdf"}
+                    st.session_state['presupuesto_generado'] = {
+                        'pdf': pdf_bytes,
+                        'nombre': f"Presupuesto {correlativo} - {patente_input} - {usuario_final_txt}.pdf"
+                    }
                     st.rerun()
-                else: st.error("Falta ingresar la patente.")
+                else:
+                    st.error("Falta ingresar la patente.")
         else:
             data = st.session_state['presupuesto_generado']
-            st.success(f"✅ Listo: {data['nombre']}")
+            st.success(f"✅ Presupuesto Generado Exitosamente: {data['nombre']}")
             st.download_button("📥 DESCARGAR PDF", data['pdf'], data['nombre'], "application/pdf", type="primary", use_container_width=True)
-            if st.button("🔄 Nueva Cotización"): reset_session()
+            if st.button("🔄 Crear Nueva Cotización"):
+                reset_session()
