@@ -11,7 +11,7 @@ import gspread
 from oauth2client.service_account import ServiceAccountCredentials
 
 # ==========================================
-# 1. CONFIGURACIÓN Y CONEXIÓN (HÍBRIDA)
+# 1. CONFIGURACIÓN Y CONEXIÓN GOOGLE SHEETS
 # ==========================================
 st.set_page_config(page_title="Cotizador Mercedes-Benz", layout="wide", page_icon="🚘")
 
@@ -19,36 +19,29 @@ NOMBRE_HOJA_GOOGLE = "DB_Cotizador"
 
 def conectar_google_sheets():
     scope = ['https://spreadsheets.google.com/feeds', 'https://www.googleapis.com/auth/drive']
-    
     try:
-        # 1. INTENTO: NUBE (Streamlit Secrets)
-        # Esto funcionará cuando lo subas a internet
-        if "gcp_service_account" in st.secrets:
+        if os.path.exists('credentials.json'):
+            creds = ServiceAccountCredentials.from_json_keyfile_name('credentials.json', scope)
+            client = gspread.authorize(creds)
+            try:
+                sheet = client.open(NOMBRE_HOJA_GOOGLE).sheet1
+                return sheet
+            except gspread.SpreadsheetNotFound:
+                st.error(f"❌ Hoja '{NOMBRE_HOJA_GOOGLE}' no encontrada en Drive.")
+                return None
+        # Intento conectar con Secrets (Nube)
+        elif "gcp_service_account" in st.secrets:
             creds_dict = st.secrets["gcp_service_account"]
             creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
-        
-        # 2. INTENTO: LOCAL (Tu PC)
-        # Esto funciona mientras pruebas en tu computador
-        elif os.path.exists('credentials.json'):
-            creds = ServiceAccountCredentials.from_json_keyfile_name('credentials.json', scope)
-        
+            client = gspread.authorize(creds)
+            return client.open(NOMBRE_HOJA_GOOGLE).sheet1
         else:
             return None
-
-        client = gspread.authorize(creds)
-        try:
-            sheet = client.open(NOMBRE_HOJA_GOOGLE).sheet1
-            return sheet
-        except gspread.SpreadsheetNotFound:
-            st.error(f"❌ No encuentro la hoja '{NOMBRE_HOJA_GOOGLE}'.")
-            return None
-
-    except Exception as e:
-        st.error(f"Error de conexión: {e}")
+    except Exception:
         return None
 
 # ==========================================
-# 2. BASE DE DATOS PATENTES
+# 2. BASE DE DATOS PATENTES (INTELIGENCIA)
 # ==========================================
 DB_PATENTES = {
     "CWKV42": "HOSPITAL PADRE LAS CASAS", "DLTL67": "SAMU", "FLJW92": "HOSPITAL TOLTEN",
@@ -78,7 +71,7 @@ def obtener_usuario_final(patente, tipo_cliente):
         return hospital if hospital else "HOSPITAL [ESPECIFICAR]"
 
 # ==========================================
-# 3. GESTIÓN DE DATOS
+# 3. GESTIÓN DE DATOS (NUBE + LOCAL)
 # ==========================================
 DATOS_MAESTROS = """Categoria,Trabajo,Costo_SSAS,Venta_SSAS,Costo_Hosp,Venta_Hosp,Costo_Gend,Venta_Gend
 Cabina y Tablero,Reparación circuito eléctrico tablero,180000,252000,189000,264600,215800,291330
@@ -144,6 +137,7 @@ def cargar_datos():
         try:
             data = sheet.get_all_records()
             if not data:
+                # Si está vacía, inicializar con CSV maestro
                 df_init = pd.read_csv(io.StringIO(DATOS_MAESTROS))
                 sheet.update([df_init.columns.values.tolist()] + df_init.values.tolist())
                 return df_init
@@ -414,7 +408,7 @@ if tipo_cliente == "Cliente Particular":
     with tabs[0]:
         st.info("ℹ️ Modo Cliente Particular: Ingrese ítems manualmente.")
         with st.container():
-            c1, c2, c3 = st.columns([5, 1.5, 2])
+            c1, c2, c3 = st.columns([5, 1.5, 2], vertical_alignment="center")
             d_m = c1.text_input("Descripción del Trabajo")
             q_m = c2.number_input("Cnt", min_value=0, value=1)
             p_m = c3.number_input("Precio Unitario ($)", min_value=0, step=5000)
@@ -444,11 +438,13 @@ else:
             else:
                 for index, row in items_validos.iterrows():
                     with st.container(): 
-                        c1, c2, c3 = st.columns([5, 1.5, 2])
+                        # AQUÍ ESTÁ EL CAMBIO CLAVE: label_visibility="collapsed" y vertical_alignment
+                        c1, c2, c3 = st.columns([5, 1.5, 2], vertical_alignment="center")
                         with c1: st.markdown(f"**{row['Trabajo']}**")
                         key_input = f"q_{row['Trabajo']}_{index}"
                         val = st.session_state.get(key_input, 0)
-                        qty = c2.number_input("", 0, 20, value=val, key=key_input)
+                        # collapsed hace que no ocupe espacio vertical extra
+                        qty = c2.number_input("", 0, 20, value=val, key=key_input, label_visibility="collapsed")
                         with c3:
                             if is_admin: st.caption(f"V: {format_clp(row[col_v_db])}"); st.caption(f"C: {format_clp(row[col_c_db])}")
                             else: st.markdown(f"**{format_clp(row[col_c_db])}**")
@@ -458,7 +454,7 @@ else:
     with tabs[-1]:
         with st.container():
             st.subheader("Item Temporal")
-            c1, c2, c3 = st.columns([5, 1.5, 2])
+            c1, c2, c3 = st.columns([5, 1.5, 2], vertical_alignment="center")
             d_m = c1.text_input("Descripción")
             q_m = c2.number_input("Cant", 0, key="mq")
             p_m = c3.number_input("Precio Unitario", 0, step=5000)
