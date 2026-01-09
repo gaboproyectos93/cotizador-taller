@@ -10,7 +10,7 @@ import time
 import gspread
 import re
 from oauth2client.service_account import ServiceAccountCredentials
-from PIL import Image
+from PIL import Image, ImageOps # <--- IMPORTANTE: Agregamos ImageOps
 
 # ==========================================
 # 1. CONFIGURACIÓN Y CONEXIÓN
@@ -172,7 +172,6 @@ def format_clp(value):
     except: return "$0"
 
 def reset_session():
-    # Limpia parámetros URL y estado
     st.query_params.clear()
     for key in list(st.session_state.keys()):
         del st.session_state[key]
@@ -199,7 +198,7 @@ st.markdown("""
 df_precios = cargar_datos()
 
 # ==========================================
-# 6. CALCULADORA (MODAL)
+# 6. CALCULADORA
 # ==========================================
 @st.dialog("🧮 Calculadora Rápida")
 def abrir_calculadora():
@@ -338,29 +337,29 @@ def generar_pdf_exacto(patente, modelo, cliente_nombre, items, total_neto, is_of
         pdf.cell(0, 10, "REGISTRO FOTOGRÁFICO", 0, 1, 'C')
         pdf.ln(5)
         
-        # Configuracion Grilla
-        margin_x = 15; margin_y = 40
+        margin_x = 15; margin_y = 60 # Margen superior aumentado para que no tape el título
         w_photo = 85; h_photo = 85
         col_gap = 10; row_gap = 10
         
         for i, foto_uploaded in enumerate(fotos_adjuntas):
-            # Nueva página cada 4 fotos (excepto la primera)
             if i > 0 and i % 4 == 0:
                 pdf.add_page()
                 pdf.cell(0, 10, "REGISTRO FOTOGRÁFICO (Cont.)", 0, 1, 'C')
             
-            # Calcular posición
             pos_page = i % 4
             row = pos_page // 2; col = pos_page % 2
             x = margin_x + (col * (w_photo + col_gap))
             y = margin_y + (row * (h_photo + row_gap))
             
             try:
-                img = Image.open(foto_uploaded).convert('RGB')
-                img.thumbnail((600, 600)) # Compresion
+                img = Image.open(foto_uploaded)
+                img = ImageOps.exif_transpose(img) # CORRECCIÓN DE ROTACIÓN
+                img = img.convert('RGB')
+                
+                img.thumbnail((600, 600))
                 temp_filename = f"temp_img_{i}.jpg"
                 img.save(temp_filename, quality=60, optimize=True)
-                pdf.image(temp_filename, x=x, y=y, w=w_photo, h=h_photo) # Forzar cuadrado visual
+                pdf.image(temp_filename, x=x, y=y, w=w_photo, h=h_photo)
                 os.remove(temp_filename)
             except: pass
 
@@ -514,14 +513,14 @@ elif st.session_state.paso_actual == 2:
                 else:
                     for index, row in items_validos.iterrows():
                         with st.container(): 
-                            c1, c2 = st.columns([7, 2], vertical_alignment="center")
-                            if is_admin: precio_txt = f"V: {format_clp(row[col_v_db])} | C: {format_clp(row[col_c_db])}"
-                            else: precio_txt = f"💰 {format_clp(row[col_c_db])}"
-                            c1.markdown(f"**{row['Trabajo']}**")
-                            c1.caption(precio_txt)
+                            c1, c2, c3 = st.columns([5.5, 1.5, 2], vertical_alignment="center")
+                            with c1: st.markdown(f"**{row['Trabajo']}**")
                             key_input = f"q_{row['Trabajo']}_{index}"
                             val = st.session_state.get(key_input, 0)
                             qty = c2.number_input("", 0, 20, value=val, key=key_input, label_visibility="collapsed")
+                            with c3:
+                                if is_admin: st.caption(f"V: {format_clp(row[col_v_db])}"); st.caption(f"C: {format_clp(row[col_c_db])}")
+                                else: st.markdown(f"**{format_clp(row[col_c_db])}**")
                             if qty > 0:
                                 seleccion_final.append({"Descripción": row['Trabajo'], "Cantidad": qty, "Unitario_Costo": row[col_c_db], "Total_Costo": row[col_c_db]*qty, "Unitario_Venta": row[col_v_db], "Total_Venta": row[col_v_db]*qty})
 
