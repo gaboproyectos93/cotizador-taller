@@ -172,8 +172,10 @@ def format_clp(value):
     except: return "$0"
 
 def reset_session():
-    # Limpia todo menos el paso 1 si ya se completó (o limpia todo)
-    st.session_state.clear()
+    # Limpiar parámetros URL también
+    st.query_params.clear()
+    for key in list(st.session_state.keys()):
+        del st.session_state[key]
     st.rerun()
 
 def encontrar_imagen(nombre_base):
@@ -369,9 +371,18 @@ with st.sidebar:
         if is_admin: st.success("Acceso Concedido")
 
 # === GESTIÓN DE PASOS ===
-if 'paso_actual' not in st.session_state: st.session_state.paso_actual = 1
-if 'cliente_detectado' not in st.session_state: st.session_state.cliente_detectado = None
-if 'usuario_final_detectado' not in st.session_state: st.session_state.usuario_final_detectado = ""
+# Verificar si hay parámetros en la URL para restaurar sesión (Anti-Reinicio)
+if 'paso_actual' not in st.session_state:
+    params = st.query_params
+    if "patente" in params and "paso" in params:
+        st.session_state.paso_actual = int(params["paso"])
+        st.session_state.patente_confirmada = params["patente"]
+        st.session_state.tipo_cliente_confirmado = params.get("cliente", "Cliente Particular")
+        # Restaurar usuario
+        u_auto, t_auto = detectar_cliente_automatico(st.session_state.patente_confirmada)
+        st.session_state.usuario_final_confirmado = u_auto if u_auto else "HOSPITAL [ESPECIFICAR]"
+    else:
+        st.session_state.paso_actual = 1
 
 # --- PASO 1: BIENVENIDA Y PATENTE ---
 if st.session_state.paso_actual == 1:
@@ -392,7 +403,6 @@ if st.session_state.paso_actual == 1:
             if usuario:
                 st.success(f"✅ Vehículo reconocido: {usuario}")
                 usuario_detectado = usuario
-                # Mapear tipo a indice
                 if tipo == "SSAS (Servicio Salud)": auto_index = 1
                 elif tipo == "Hospital Temuco": auto_index = 2
                 elif tipo == "Gendarmería de Chile": auto_index = 3
@@ -408,54 +418,47 @@ if st.session_state.paso_actual == 1:
             "Cliente Particular"
         )
         
-        # El selectbox usa el índice detectado, o se queda en 0 (Seleccione...)
         tipo_cliente = st.selectbox("Institución / Cliente", opciones_cliente, index=auto_index)
         
         if st.button("🚀 COMENZAR COTIZACIÓN", type="primary", use_container_width=True):
-            # BLOQUEO DE SEGURIDAD
             if tipo_cliente == "--- Seleccione Institución ---":
                 st.error("⛔ Debe seleccionar una institución válida para continuar.")
             elif not patente:
                 st.error("⛔ Debe ingresar una patente.")
             else:
-                # GUARDAR Y AVANZAR
+                # GUARDAR Y AVANZAR (Persistencia URL)
+                st.query_params["patente"] = patente
+                st.query_params["cliente"] = tipo_cliente
+                st.query_params["paso"] = "2"
+                
                 st.session_state.patente_confirmada = patente
                 st.session_state.tipo_cliente_confirmado = tipo_cliente
-                
-                # Definir usuario final
-                if usuario_detectado:
-                    st.session_state.usuario_final_confirmado = usuario_detectado
-                elif tipo_cliente == "Cliente Particular":
-                    st.session_state.usuario_final_confirmado = "CLIENTE PARTICULAR"
-                elif tipo_cliente == "Gendarmería de Chile":
-                    st.session_state.usuario_final_confirmado = "GENDARMERÍA DE CHILE"
-                else:
-                    st.session_state.usuario_final_confirmado = "HOSPITAL [ESPECIFICAR]"
+                if usuario_detectado: st.session_state.usuario_final_confirmado = usuario_detectado
+                elif tipo_cliente == "Cliente Particular": st.session_state.usuario_final_confirmado = "CLIENTE PARTICULAR"
+                elif tipo_cliente == "Gendarmería de Chile": st.session_state.usuario_final_confirmado = "GENDARMERÍA DE CHILE"
+                else: st.session_state.usuario_final_confirmado = "HOSPITAL [ESPECIFICAR]"
                 
                 st.session_state.paso_actual = 2
                 st.rerun()
 
 # --- PASO 2: COTIZADOR COMPLETO ---
 elif st.session_state.paso_actual == 2:
-    # Recuperar datos del paso 1
     tipo_cliente = st.session_state.tipo_cliente_confirmado
     patente_input = st.session_state.patente_confirmada
     
-    # Header pequeño
     c1, c2, c3 = st.columns([1, 4, 1])
     with c1: 
         if st.button("⬅️ Volver"): 
+            st.query_params.clear() # Limpiar URL al volver
             st.session_state.paso_actual = 1
             st.rerun()
     with c2: st.markdown(f"### 🚗 Cotizando: **{patente_input}** ({tipo_cliente})")
     
-    # Logos dinámicos
     watermark_file = None; logo_header = None 
     if tipo_cliente == "Gendarmería de Chile": watermark_file = encontrar_imagen("gendarmeria"); logo_header = watermark_file; categorias_a_mostrar = df_precios['Categoria'].unique()
     elif tipo_cliente == "Cliente Particular": watermark_file = None; logo_header = None; categorias_a_mostrar = [] 
     else: watermark_file = encontrar_imagen("ambulancia"); logo_header = watermark_file; categorias_a_mostrar = df_precios['Categoria'].unique()
 
-    # Inputs secundarios
     usuario_final_txt = st.text_input("Usuario Final / Hospital:", value=st.session_state.usuario_final_confirmado)
     
     emojis = { "Luces y Exterior": "💡", "Carrocería y Vidrios": "🚐", "Interior Sanitario": "🏥", "Climatización y Aire": "❄️",
@@ -484,7 +487,6 @@ elif st.session_state.paso_actual == 2:
                     if st.button("Limpiar Lista"): st.session_state.lista_particular = []; st.rerun()
                     seleccion_final = st.session_state.lista_particular
     else:
-        # Pestañas Categorías
         tabs = st.tabs([f"{emojis.get(c, '🔧')} {c}" for c in categorias_a_mostrar] + ["➕ Manual (Temp)"])
         if tipo_cliente == "SSAS (Servicio Salud)": col_c_db = 'Costo_SSAS'; col_v_db = 'Venta_SSAS'
         elif tipo_cliente == "Hospital Temuco": col_c_db = 'Costo_Hosp'; col_v_db = 'Venta_Hosp'
@@ -499,19 +501,13 @@ elif st.session_state.paso_actual == 2:
                     for index, row in items_validos.iterrows():
                         with st.container(): 
                             c1, c2 = st.columns([7, 2], vertical_alignment="center")
-                            
-                            # Columna 1: Texto + Precio
                             if is_admin: precio_txt = f"V: {format_clp(row[col_v_db])} | C: {format_clp(row[col_c_db])}"
                             else: precio_txt = f"💰 {format_clp(row[col_c_db])}"
-                            
                             c1.markdown(f"**{row['Trabajo']}**")
-                            c1.caption(precio_txt) # Caption para que se vea sutil abajo
-                            
-                            # Columna 2: Selector
+                            c1.caption(precio_txt)
                             key_input = f"q_{row['Trabajo']}_{index}"
                             val = st.session_state.get(key_input, 0)
                             qty = c2.number_input("", 0, 20, value=val, key=key_input, label_visibility="collapsed")
-                            
                             if qty > 0:
                                 seleccion_final.append({"Descripción": row['Trabajo'], "Cantidad": qty, "Unitario_Costo": row[col_c_db], "Total_Costo": row[col_c_db]*qty, "Unitario_Venta": row[col_v_db], "Total_Venta": row[col_v_db]*qty})
 
@@ -538,8 +534,6 @@ elif st.session_state.paso_actual == 2:
         total_costo = sum(x['Total_Costo'] for x in seleccion_final)
         total_venta = sum(x['Total_Venta'] for x in seleccion_final)
         st.subheader("📊 Resumen Final")
-        
-        # Admin ve desglose, Usuario ve total
         if is_admin:
             k1, k2, k3, k4 = st.columns(4)
             k1.metric("Costo Neto", format_clp(total_costo))
@@ -553,17 +547,27 @@ elif st.session_state.paso_actual == 2:
             total_final = total_costo + iva; k3.metric("TOTAL A PAGAR", format_clp(total_final))
 
         observaciones_txt = st.text_area("Notas / Observaciones:", height=100)
-        st.markdown("### 📸 Fotografías")
-        fotos_adjuntas = st.file_uploader("Adjuntar evidencia (se comprimirán autom.)", accept_multiple_files=True, type=['jpg', 'png', 'jpeg'])
+        st.markdown("### 📸 Fotografías (Cámara integrada)")
+        
+        # WIDGET CÁMARA INTEGRADA (ANTI-REINICIO)
+        foto_camara = st.camera_input("Tomar foto con la cámara", label_visibility="collapsed")
+        
+        st.caption("O subir desde galería:")
+        fotos_galeria = st.file_uploader("Subir archivos", accept_multiple_files=True, type=['jpg', 'png', 'jpeg'], label_visibility="collapsed")
+        
+        # Combinar fotos
+        fotos_totales = []
+        if foto_camara: fotos_totales.append(foto_camara)
+        if fotos_galeria: fotos_totales.extend(fotos_galeria)
+
         estado_trabajo = st.radio("Estado:", ("En Espera de Aprobación", "Trabajo Realizado"))
 
         if 'presupuesto_generado' not in st.session_state:
             if st.button("💾 FINALIZAR Y GENERAR PRESUPUESTO", type="primary", use_container_width=True):
                 correlativo = obtener_y_registrar_correlativo(patente_input, usuario_final_txt, format_clp(total_final))
                 
-                # Generar PDF Admin o Usuario
-                if is_admin: pdf_bytes = generar_pdf_exacto(patente_input, "SPRINTER", usuario_final_txt, seleccion_final, total_venta, True, watermark_file, estado_trabajo, usuario_final_txt, observaciones_txt, correlativo, fotos_adjuntas)
-                else: pdf_bytes = generar_pdf_exacto(patente_input, "SPRINTER", "Kaufmann S.A.", seleccion_final, total_costo, False, watermark_file, estado_trabajo, usuario_final_txt, observaciones_txt, correlativo, fotos_adjuntas)
+                if is_admin: pdf_bytes = generar_pdf_exacto(patente_input, "SPRINTER", usuario_final_txt, seleccion_final, total_venta, True, watermark_file, estado_trabajo, usuario_final_txt, observaciones_txt, correlativo, fotos_totales)
+                else: pdf_bytes = generar_pdf_exacto(patente_input, "SPRINTER", "Kaufmann S.A.", seleccion_final, total_costo, False, watermark_file, estado_trabajo, usuario_final_txt, observaciones_txt, correlativo, fotos_totales)
                 
                 st.session_state['presupuesto_generado'] = {'pdf': pdf_bytes, 'nombre': f"Presupuesto {correlativo} - {patente_input}.pdf"}
                 st.rerun()
