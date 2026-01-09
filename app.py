@@ -8,14 +8,14 @@ from fpdf import FPDF
 from datetime import datetime
 import time
 import gspread
-import re # <--- ESTO FALTABA PARA QUE FUNCIONE LA LIMPIEZA
+import re
 from oauth2client.service_account import ServiceAccountCredentials
 from PIL import Image
 
 # ==========================================
 # 1. CONFIGURACIÓN Y CONEXIÓN
 # ==========================================
-st.set_page_config(page_title="Cotizador C.H. Servicio Automotriz", layout="wide", page_icon="🚘")
+st.set_page_config(page_title="Cotizador C.H.", layout="wide", page_icon="🚘")
 
 NOMBRE_HOJA_GOOGLE = "DB_Cotizador"
 
@@ -27,15 +27,13 @@ def conectar_google_sheets():
             creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
         elif os.path.exists('credentials.json'):
             creds = ServiceAccountCredentials.from_json_keyfile_name('credentials.json', scope)
-        else:
-            return None
+        else: return None
         client = gspread.authorize(creds)
         return client 
-    except Exception:
-        return None
+    except: return None
 
 # ==========================================
-# 2. LÓGICA DE CORRELATIVOS
+# 2. FUNCIONES LÓGICAS (CORRELATIVOS Y DATOS)
 # ==========================================
 def obtener_y_registrar_correlativo(patente, cliente, total):
     client = conectar_google_sheets()
@@ -56,60 +54,25 @@ def obtener_y_registrar_correlativo(patente, cliente, total):
         except: return "ERR-NUBE"
     else: return "OFFLINE"
 
-# ==========================================
-# 3. BASE DE DATOS INTELIGENTE
-# ==========================================
-
-# LISTA TRANSCRITA DE LA IMAGEN (Sin guiones para mejor detección)
-LISTA_GENDARMERIA = [
-    "BYRH67", "CGZP59", "CVXV81", "DJDS43", "DRTY89", "DRTY99", "JZPJ79", 
-    "CGCR37", "GTBC75", "GXSW72", "GYPT12", "HHBL18", "HHBL19", "HKRL36", 
-    "HKRL50", "JBDP22", "JBDP23"
-]
-
+# BASE DE DATOS PATENTES
+LISTA_GENDARMERIA = ["BYRH67", "CGZP59", "CVXV81", "DJDS43", "DRTY89", "DRTY99", "JZPJ79", "CGCR37", "GTBC75", "GXSW72", "GYPT12", "HHBL18", "HHBL19", "HKRL36", "HKRL50", "JBDP22", "JBDP23"]
 DB_HOSPITALES = {
-    "CWKV42": "HOSPITAL PADRE LAS CASAS", "DLTL67": "SAMU", "FLJW92": "HOSPITAL TOLTEN",
-    "GRCH58": "HOSPITAL LONCOCHE", "GXTD94": "HOSPITAL CUNCO", "GXTD96": "HOSPITAL MIRAFLORES",
-    "HKPH64": "HOSPITAL CUNCO", "HKPH65": "HOSPITAL TOLTEN", "HKPH66": "HOSPITAL GALVARINO",
-    "HKPP33": "HOSPITAL LONCOCHE", "HKPV98": "HOSPITAL LAUTARO", "HKRC82": "HOSPITAL PITRUFQUEN",
-    "HKRC84": "HOSPITAL VILLARRICA", "HKRC85": "SAMU / VILCUN", "HRCH58": "HOSPITAL LONCOCHE",
-    "HXRP10": "HOSPITAL TEMUCO", "HXRP11": "HOSPITAL CARAHUE", "HXRP12": "HOSPITAL CUNCO",
-    "HXRP14": "HOSPITAL LONCOCHE", "HXRP15": "HOSPITAL GALVARINO", "HXRP16": "HOSPITAL CARAHUE",
-    "HXRP18": "HOSPITAL PITRUFQUEN", "HXRP19": "HOSPITAL VILLARRICA", "HXRP20": "HOSPITAL TOLTEN",
-    "HXRP21": "HOSPITAL TEMUCO", "HXRP22": "HOSPITAL VILCUN", "HXRP23": "HOSPITAL TEMUCO",
-    "HXRP24": "HOSPITAL GORBEA", "HXRP26": "HOSPITAL LONCOCHE", "HZGX64": "SAMU",
-    "HZGX65": "HOSPITAL VILLARRICA", "HZGX66": "HOSPITAL PITRUFQUEN", "HZGX70": "HOSPITAL TEMUCO",
-    "JHFX18": "SAMU", "KYWG26": "SAMU", "LPCT51": "HOSPITAL TEMUCO", "LPCT53": "HOSPITAL VILLARRICA",
-    "LZPG72": "HOSPITAL PADRE LAS CASAS", "LZPG73": "HOSPITAL PADRE LAS CASAS",
-    "PPYV76": "HOSPITAL LONCOCHE", "RBFR24": "HOSPITAL CARAHUE", "RBFR25": "HOSPITAL PITRUFQUEN",
-    "RBFR28": "HOSPITAL SAAVEDRA", "RBFR29": "HOSPITAL TOLTEN", "RBFR30": "HOSPITAL VILCUN",
-    "SHLF84": "HOSPITAL TEMUCO", "SHLF85": "HOSPITAL GORBEA", "SYTG24": "HOSPITAL NUEVA IMPERIAL"
+    "CWKV42": "HOSPITAL PADRE LAS CASAS", "DLTL67": "SAMU", "FLJW92": "HOSPITAL TOLTEN", "GRCH58": "HOSPITAL LONCOCHE", "GXTD94": "HOSPITAL CUNCO", "GXTD96": "HOSPITAL MIRAFLORES", "HKPH64": "HOSPITAL CUNCO", "HKPH65": "HOSPITAL TOLTEN", "HKPH66": "HOSPITAL GALVARINO", "HKPP33": "HOSPITAL LONCOCHE", "HKPV98": "HOSPITAL LAUTARO", "HKRC82": "HOSPITAL PITRUFQUEN", "HKRC84": "HOSPITAL VILLARRICA", "HKRC85": "SAMU / VILCUN", "HRCH58": "HOSPITAL LONCOCHE", "HXRP10": "HOSPITAL TEMUCO", "HXRP11": "HOSPITAL CARAHUE", "HXRP12": "HOSPITAL CUNCO", "HXRP14": "HOSPITAL LONCOCHE", "HXRP15": "HOSPITAL GALVARINO", "HXRP16": "HOSPITAL CARAHUE", "HXRP18": "HOSPITAL PITRUFQUEN", "HXRP19": "HOSPITAL VILLARRICA", "HXRP20": "HOSPITAL TOLTEN", "HXRP21": "HOSPITAL TEMUCO", "HXRP22": "HOSPITAL VILCUN", "HXRP23": "HOSPITAL TEMUCO", "HXRP24": "HOSPITAL GORBEA", "HXRP26": "HOSPITAL LONCOCHE", "HZGX64": "SAMU", "HZGX65": "HOSPITAL VILLARRICA", "HZGX66": "HOSPITAL PITRUFQUEN", "HZGX70": "HOSPITAL TEMUCO", "JHFX18": "SAMU", "KYWG26": "SAMU", "LPCT51": "HOSPITAL TEMUCO", "LPCT53": "HOSPITAL VILLARRICA", "LZPG72": "HOSPITAL PADRE LAS CASAS", "LZPG73": "HOSPITAL PADRE LAS CASAS", "PPYV76": "HOSPITAL LONCOCHE", "RBFR24": "HOSPITAL CARAHUE", "RBFR25": "HOSPITAL PITRUFQUEN", "RBFR28": "HOSPITAL SAAVEDRA", "RBFR29": "HOSPITAL TOLTEN", "RBFR30": "HOSPITAL VILCUN", "SHLF84": "HOSPITAL TEMUCO", "SHLF85": "HOSPITAL GORBEA", "SYTG24": "HOSPITAL NUEVA IMPERIAL"
 }
 
 def limpiar_patente(texto):
     if not texto: return ""
-    # Elimina guiones y espacios, deja solo letras y numeros
     return re.sub(r'[^A-Z0-9]', '', texto.upper())
 
 def detectar_cliente_automatico(patente_input):
-    """Devuelve (Nombre Usuario Final, Tipo Cliente Selector)"""
     patente_clean = limpiar_patente(patente_input)
-    
-    # 1. Gendarmería
-    if patente_clean in LISTA_GENDARMERIA:
-        return "GENDARMERÍA DE CHILE", "Gendarmería de Chile"
-    
-    # 2. Hospitales
+    if patente_clean in LISTA_GENDARMERIA: return "GENDARMERÍA DE CHILE", "Gendarmería de Chile"
     hospital = DB_HOSPITALES.get(patente_clean)
     if hospital:
         tipo = "Hospital Temuco" if "TEMUCO" in hospital else "SSAS (Servicio Salud)"
         return hospital, tipo
-        
     return None, None
 
-# ==========================================
-# 4. GESTIÓN DE DATOS Y ESTILOS
-# ==========================================
 DATOS_MAESTROS = """Categoria,Trabajo,Costo_SSAS,Venta_SSAS,Costo_Hosp,Venta_Hosp,Costo_Gend,Venta_Gend
 Cabina y Tablero,Reparación circuito eléctrico tablero,180000,252000,189000,264600,215800,291330
 Equipamiento y Radio,Cambiar sirena y parlante con accesorios,893700,1161810,600000,780000,895670,1164371
@@ -187,19 +150,14 @@ def guardar_nuevo_item(categoria, nombre, costo):
     if client:
         try:
             sheet = client.open(NOMBRE_HOJA_GOOGLE).sheet1
-            venta_ssas = costo * 1.40
-            costo_hosp = costo * 1.05
-            venta_hosp = venta_ssas * 1.05
-            costo_gend = costo
-            venta_gend = costo * 1.40 
+            venta_ssas = costo * 1.40; costo_hosp = costo * 1.05; venta_hosp = venta_ssas * 1.05; costo_gend = costo; venta_gend = costo * 1.40 
             sheet.append_row([categoria, nombre, costo, venta_ssas, costo_hosp, venta_hosp, costo_gend, venta_gend])
-            st.cache_data.clear()
-            return True
+            st.cache_data.clear(); return True
         except: return False
     return False
 
 # ==========================================
-# 5. UTILS Y ESTILOS
+# 3. UTILS Y ESTILOS
 # ==========================================
 EMPRESA_NOMBRE = "C.H. SERVICIO AUTOMOTRIZ"
 RUT_EMPRESA = "13.961.700-2" 
@@ -212,10 +170,8 @@ def format_clp(value):
     except: return "$0"
 
 def reset_session():
-    # Limpieza total, incluyendo fotos y lista manual
-    for key in list(st.session_state.keys()):
-        if key.startswith("q_") or key == "mq" or key == "lista_particular" or key == "items_manuales_extra" or key == "presupuesto_generado" or key == "patente_actual":
-            del st.session_state[key]
+    # Limpia todo menos el paso 1 si ya se completó (o limpia todo)
+    st.session_state.clear()
     st.rerun()
 
 def encontrar_imagen(nombre_base):
@@ -232,15 +188,17 @@ st.markdown("""
     .stContainer { border: 1px solid rgba(128, 128, 128, 0.2); border-radius: 8px; padding: 10px; margin-bottom: 5px; }
     div[data-testid="stNumberInput"] input { max-width: 100px; text-align: center; }
     input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+    .big-font { font-size:20px !important; font-weight: bold; }
 </style>
 """, unsafe_allow_html=True)
 
 df_precios = cargar_datos()
 
 # ==========================================
-# 6. CALCULADORA
+# 4. CALCULADORA (MODAL)
 # ==========================================
-def mostrar_calculadora_windows():
+@st.dialog("🧮 Calculadora Rápida")
+def abrir_calculadora():
     calc_html = """<!DOCTYPE html><html><head><style>
         body { margin: 0; font-family: sans-serif; background: transparent; }
         .calculator { background: #2d2d2d; border-radius: 10px; padding: 10px; box-shadow: 0 4px 15px rgba(0,0,0,0.3); border: 1px solid #444; }
@@ -269,7 +227,7 @@ def mostrar_calculadora_windows():
     components.html(calc_html, height=280)
 
 # ==========================================
-# 7. PDF
+# 5. PDF
 # ==========================================
 class PDF(FPDF):
     def __init__(self, logo_header=None, correlativo=""):
@@ -290,7 +248,6 @@ class PDF(FPDF):
         else:
             self.cell(0, 5, "Repuestos y Servicio Técnico Mercedes-Benz", 0, 1, 'L')
         self.set_xy(130, 10); self.set_font('Arial', 'B', 14); self.set_text_color(20, 20, 60)
-        
         titulo = "COTIZACIÓN" if self.is_official else "PRESUPUESTO"
         if self.correlativo and self.correlativo != "BORRADOR": titulo += f" N° {self.correlativo}"
         self.cell(70, 10, titulo, 1, 1, 'C')
@@ -370,12 +327,9 @@ def generar_pdf_exacto(patente, modelo, cliente_nombre, items, total_neto, is_of
     firmante = "KAUFMANN S.A." if is_official else EMPRESA_NOMBRE
     pdf.ln(5); pdf.cell(0, 5, firmante, 0, 1, 'C')
 
-    # --- PÁGINA DE FOTOS ---
     if fotos_adjuntas:
-        pdf.add_page()
-        pdf.set_font('Arial', 'B', 14); pdf.set_text_color(20, 20, 60)
-        pdf.cell(0, 10, "REGISTRO FOTOGRÁFICO", 0, 1, 'C')
-        pdf.ln(5)
+        pdf.add_page(); pdf.set_font('Arial', 'B', 14); pdf.set_text_color(20, 20, 60)
+        pdf.cell(0, 10, "REGISTRO FOTOGRÁFICO", 0, 1, 'C'); pdf.ln(5)
         for i, foto_uploaded in enumerate(fotos_adjuntas):
             try:
                 img = Image.open(foto_uploaded).convert('RGB')
@@ -389,221 +343,219 @@ def generar_pdf_exacto(patente, modelo, cliente_nombre, items, total_neto, is_of
                 pdf.image(temp_filename, x=x_pos, w=150); pdf.ln(5)
                 os.remove(temp_filename)
             except: pass
-
     return pdf.output(dest='S').encode('latin-1')
 
 # ==========================================
-# 8. UI PRINCIPAL
+# 9. UI PRINCIPAL (FLUJO PASO A PASO)
 # ==========================================
 with st.sidebar:
     logo_mercedes = encontrar_imagen("mercedes")
     if logo_mercedes: st.image(logo_mercedes, width=60)
     else: st.markdown("# 🏎️")
-    st.markdown("### 🧮 Calculadora"); mostrar_calculadora_windows(); st.markdown("---")
     
-    if st.button("🗑️ Borrar Todo / Nuevo", type="primary"): reset_session()
-
-    st.header("Datos Unidad")
-    patente_input = st.text_input("Patente (PPU)", placeholder="Ej: HX-RP10").upper()
-    modelo_input = st.text_input("Modelo Vehículo", value="SPRINTER")
-    
-    tipo_cliente = st.selectbox("Institución:", ("SSAS (Servicio Salud)", "Hospital Temuco", "Gendarmería de Chile", "Cliente Particular"), key="selector_cliente")
-    
-    # 1. AUTO DETECCION CLIENTE
-    usuario_auto, tipo_auto = detectar_cliente_automatico(patente_input)
-    
-    # 2. LOGICA DE CAMBIO
-    if 'ultimo_cliente' not in st.session_state: st.session_state.ultimo_cliente = tipo_cliente
-    if 'patente_actual' not in st.session_state: st.session_state.patente_actual = patente_input
-
-    # Si cambió la patente y detectamos cliente nuevo, forzamos recarga
-    if patente_input != st.session_state.patente_actual:
-        st.session_state.patente_actual = patente_input
-        if tipo_auto and tipo_auto != tipo_cliente:
-             # ESTO ES UN TRUCO: Cambiamos el indice del selectbox pero requiere session state
-             # Por simplicidad, solo sugerimos el usuario final
-             pass
-
-    # Si el usuario cambió manualmente el cliente
-    if st.session_state.ultimo_cliente != tipo_cliente:
-        st.session_state.ultimo_cliente = tipo_cliente; reset_session()
-
-    # Usuario Final (Prioridad: Detección auto -> Manual)
-    valor_usuario = usuario_auto if usuario_auto else "HOSPITAL [ESPECIFICAR]"
-    if tipo_cliente == "Cliente Particular": valor_usuario = "CLIENTE PARTICULAR"
-    elif tipo_cliente == "Gendarmería de Chile": valor_usuario = "GENDARMERÍA DE CHILE"
-    
-    usuario_final_txt = st.text_input("Usuario Final / Hospital:", value=valor_usuario)
-    observaciones_txt = st.text_area("Notas / Observaciones:", height=100)
+    # 1. BOTÓN CALCULADORA
+    if st.button("🧮 Abrir Calculadora", use_container_width=True):
+        abrir_calculadora()
     
     st.markdown("---")
-    st.markdown("### 📸 Fotografías")
-    fotos_adjuntas = st.file_uploader("Adjuntar evidencia (se comprimirán autom.)", accept_multiple_files=True, type=['jpg', 'png', 'jpeg'])
-    
-    estado_trabajo = st.radio("Estado del Trabajo:", ("En Espera de Aprobación", "Trabajo Realizado"))
+    if st.button("🗑️ Reiniciar Todo", type="primary", use_container_width=True):
+        reset_session()
     
     st.divider()
-    with st.expander("🔐 Supervisor / Admin"):
+    with st.expander("🔐 Admin"):
         password = st.text_input("Contraseña", type="password")
         is_admin = (password == "kaufmann")
         if is_admin: st.success("Acceso Concedido")
 
+# === GESTIÓN DE PASOS ===
+if 'paso_actual' not in st.session_state: st.session_state.paso_actual = 1
+if 'cliente_detectado' not in st.session_state: st.session_state.cliente_detectado = None
+if 'usuario_final_detectado' not in st.session_state: st.session_state.usuario_final_detectado = ""
+
+# --- PASO 1: BIENVENIDA Y PATENTE ---
+if st.session_state.paso_actual == 1:
+    col_centro = st.columns([1, 2, 1])
+    with col_centro[1]:
+        logo_main = encontrar_imagen("logo")
+        if logo_main: st.image(logo_main, width=200)
+        st.title("Cotizador Taller")
+        st.markdown("#### 1. Identificación del Vehículo")
+        
+        patente = st.text_input("Ingrese Patente", placeholder="Ej: HX-RP10", key="input_patente_inicio").upper()
+        
+        # Lógica de detección en vivo
+        if patente:
+            usuario, tipo = detectar_cliente_automatico(patente)
+            if usuario:
+                st.success(f"✅ Vehículo reconocido: {usuario}")
+                st.info(f"Cliente sugerido: {tipo}")
+            else:
+                st.warning("⚠️ Patente no registrada. Seleccione institución manualmente.")
+        
+        tipo_cliente = st.selectbox("Institución / Cliente", 
+            ("SSAS (Servicio Salud)", "Hospital Temuco", "Gendarmería de Chile", "Cliente Particular"),
+            index=2 if patente and "GENDARMERÍA" in str(detectar_cliente_automatico(patente)) else 0
+        )
+        
+        if st.button("🚀 COMENZAR COTIZACIÓN", type="primary", use_container_width=True):
+            if patente:
+                st.session_state.patente_confirmada = patente
+                st.session_state.tipo_cliente_confirmado = tipo_cliente
+                # Guardar usuario final
+                u_auto, t_auto = detectar_cliente_automatico(patente)
+                st.session_state.usuario_final_confirmado = u_auto if u_auto else "HOSPITAL [ESPECIFICAR]"
+                if tipo_cliente == "Cliente Particular": st.session_state.usuario_final_confirmado = "CLIENTE PARTICULAR"
+                
+                st.session_state.paso_actual = 2
+                st.rerun()
+            else:
+                st.error("Por favor ingrese una patente.")
+
+# --- PASO 2: COTIZADOR COMPLETO ---
+elif st.session_state.paso_actual == 2:
+    # Recuperar datos del paso 1
+    tipo_cliente = st.session_state.tipo_cliente_confirmado
+    patente_input = st.session_state.patente_confirmada
+    
+    # Header pequeño
+    c1, c2, c3 = st.columns([1, 4, 1])
+    with c1: 
+        if st.button("⬅️ Volver"): 
+            st.session_state.paso_actual = 1
+            st.rerun()
+    with c2: st.markdown(f"### 🚗 Cotizando: **{patente_input}** ({tipo_cliente})")
+    
+    # Logos dinámicos
+    watermark_file = None; logo_header = None 
+    if tipo_cliente == "Gendarmería de Chile": watermark_file = encontrar_imagen("gendarmeria"); logo_header = watermark_file; categorias_a_mostrar = df_precios['Categoria'].unique()
+    elif tipo_cliente == "Cliente Particular": watermark_file = None; logo_header = None; categorias_a_mostrar = [] 
+    else: watermark_file = encontrar_imagen("ambulancia"); logo_header = watermark_file; categorias_a_mostrar = df_precios['Categoria'].unique()
+
+    # Inputs secundarios
+    usuario_final_txt = st.text_input("Usuario Final / Hospital:", value=st.session_state.usuario_final_confirmado)
+    
+    emojis = { "Luces y Exterior": "💡", "Carrocería y Vidrios": "🚐", "Interior Sanitario": "🏥", "Climatización y Aire": "❄️",
+        "Asientos y Tapiz": "💺", "Equipamiento y Radio": "📻", "Cabina y Tablero": "📟", "Camilla": "🚑", "Seguridad y Calabozos": "🔒"}
+
+    seleccion_final = []
+
+    if tipo_cliente == "Cliente Particular":
+        tabs = st.tabs(["➕ Ingreso Manual"])
+        with tabs[0]:
+            st.info("ℹ️ Modo Cliente Particular: Ingrese ítems manualmente.")
+            with st.container():
+                c1, c2, c3 = st.columns([5.5, 1.5, 2], vertical_alignment="center")
+                d_m = c1.text_input("Descripción del Trabajo")
+                q_m = c2.number_input("Cnt", min_value=0, value=1)
+                p_m = c3.number_input("Precio Unitario ($)", min_value=0, step=5000)
+                if 'lista_particular' not in st.session_state: st.session_state.lista_particular = []
+                if st.button("Agregar Ítem"):
+                    if d_m and q_m > 0 and p_m > 0:
+                        st.session_state.lista_particular.append({"Descripción": d_m, "Cantidad": q_m, "Unitario_Costo": p_m, "Total_Costo": p_m*q_m, "Unitario_Venta": p_m*1.35, "Total_Venta": (p_m*1.35)*q_m})
+                        st.success("Agregado")
+                if st.session_state.lista_particular:
+                    st.markdown("#### Ítems Agregados:")
+                    df_part = pd.DataFrame(st.session_state.lista_particular)
+                    st.table(df_part[["Descripción", "Cantidad", "Unitario_Costo", "Total_Costo"]])
+                    if st.button("Limpiar Lista"): st.session_state.lista_particular = []; st.rerun()
+                    seleccion_final = st.session_state.lista_particular
+    else:
+        # Pestañas Categorías
+        tabs = st.tabs([f"{emojis.get(c, '🔧')} {c}" for c in categorias_a_mostrar] + ["➕ Manual (Temp)"])
+        if tipo_cliente == "SSAS (Servicio Salud)": col_c_db = 'Costo_SSAS'; col_v_db = 'Venta_SSAS'
+        elif tipo_cliente == "Hospital Temuco": col_c_db = 'Costo_Hosp'; col_v_db = 'Venta_Hosp'
+        else: col_c_db = 'Costo_Gend'; col_v_db = 'Venta_Gend'
+
+        for i, cat in enumerate(categorias_a_mostrar):
+            with tabs[i]:
+                df_cat = df_precios[df_precios['Categoria'] == cat]
+                items_validos = df_cat[df_cat[col_c_db] > 0]
+                if items_validos.empty: st.info("⚠️ Esta categoría no aplica para el cliente seleccionado.")
+                else:
+                    for index, row in items_validos.iterrows():
+                        with st.container(): 
+                            c1, c2 = st.columns([7, 2], vertical_alignment="center")
+                            
+                            # Columna 1: Texto + Precio
+                            if is_admin: precio_txt = f"V: {format_clp(row[col_v_db])} | C: {format_clp(row[col_c_db])}"
+                            else: precio_txt = f"💰 {format_clp(row[col_c_db])}"
+                            
+                            c1.markdown(f"**{row['Trabajo']}**")
+                            c1.caption(precio_txt) # Caption para que se vea sutil abajo
+                            
+                            # Columna 2: Selector
+                            key_input = f"q_{row['Trabajo']}_{index}"
+                            val = st.session_state.get(key_input, 0)
+                            qty = c2.number_input("", 0, 20, value=val, key=key_input, label_visibility="collapsed")
+                            
+                            if qty > 0:
+                                seleccion_final.append({"Descripción": row['Trabajo'], "Cantidad": qty, "Unitario_Costo": row[col_c_db], "Total_Costo": row[col_c_db]*qty, "Unitario_Venta": row[col_v_db], "Total_Venta": row[col_v_db]*qty})
+
+        with tabs[-1]:
+            with st.container():
+                st.subheader("Item Temporal")
+                if 'items_manuales_extra' not in st.session_state: st.session_state.items_manuales_extra = []
+                c1, c2, c3 = st.columns([5.5, 1.5, 2], vertical_alignment="center")
+                d_m = c1.text_input("Descripción del Trabajo (Manual)")
+                q_m = c2.number_input("Cant.", min_value=1, value=1, key="mq")
+                p_m = c3.number_input("Precio Unitario ($)", min_value=0, step=5000)
+                if st.button("Agregar Ítem Manual"):
+                    if d_m and p_m > 0:
+                        st.session_state.items_manuales_extra.append({"Descripción": f"(Extra) {d_m}", "Cantidad": q_m, "Unitario_Costo": p_m, "Total_Costo": p_m * q_m, "Unitario_Venta": p_m * 1.35, "Total_Venta": (p_m * 1.35) * q_m})
+                        st.success(f"Agregado: {d_m}")
+                if st.session_state.items_manuales_extra:
+                    st.markdown("---"); st.markdown("###### Ítems Manuales:")
+                    for item in st.session_state.items_manuales_extra: st.text(f"• {item['Cantidad']}x {item['Descripción']}")
+                    if st.button("Limpiar Manuales"): st.session_state.items_manuales_extra = []; st.rerun()
+                    seleccion_final.extend(st.session_state.items_manuales_extra)
+
+    if seleccion_final:
+        st.markdown("---")
+        total_costo = sum(x['Total_Costo'] for x in seleccion_final)
+        total_venta = sum(x['Total_Venta'] for x in seleccion_final)
+        st.subheader("📊 Resumen Final")
+        
+        # Admin ve desglose, Usuario ve total
+        if is_admin:
+            k1, k2, k3, k4 = st.columns(4)
+            k1.metric("Costo Neto", format_clp(total_costo))
+            k2.metric("Venta Neta", format_clp(total_venta))
+            iva = total_venta * 0.19; k3.metric("IVA (19%)", format_clp(iva))
+            total_final = total_venta + iva; k4.metric("Total Factura", format_clp(total_final))
+        else:
+            k1, k2, k3 = st.columns(3)
+            k1.metric("Neto", format_clp(total_costo))
+            iva = total_costo * 0.19; k2.metric("IVA (19%)", format_clp(iva))
+            total_final = total_costo + iva; k3.metric("TOTAL A PAGAR", format_clp(total_final))
+
+        observaciones_txt = st.text_area("Notas / Observaciones:", height=100)
+        st.markdown("### 📸 Fotografías")
+        fotos_adjuntas = st.file_uploader("Adjuntar evidencia (se comprimirán autom.)", accept_multiple_files=True, type=['jpg', 'png', 'jpeg'])
+        estado_trabajo = st.radio("Estado:", ("En Espera de Aprobación", "Trabajo Realizado"))
+
+        if 'presupuesto_generado' not in st.session_state:
+            if st.button("💾 FINALIZAR Y GENERAR PRESUPUESTO", type="primary", use_container_width=True):
+                correlativo = obtener_y_registrar_correlativo(patente_input, usuario_final_txt, format_clp(total_final))
+                
+                # Generar PDF Admin o Usuario
+                if is_admin: pdf_bytes = generar_pdf_exacto(patente_input, "SPRINTER", usuario_final_txt, seleccion_final, total_venta, True, watermark_file, estado_trabajo, usuario_final_txt, observaciones_txt, correlativo, fotos_adjuntas)
+                else: pdf_bytes = generar_pdf_exacto(patente_input, "SPRINTER", "Kaufmann S.A.", seleccion_final, total_costo, False, watermark_file, estado_trabajo, usuario_final_txt, observaciones_txt, correlativo, fotos_adjuntas)
+                
+                st.session_state['presupuesto_generado'] = {'pdf': pdf_bytes, 'nombre': f"Presupuesto {correlativo} - {patente_input}.pdf"}
+                st.rerun()
+        else:
+            data = st.session_state['presupuesto_generado']
+            st.success(f"✅ Presupuesto N° {data['nombre']} generado correctamente.")
+            st.download_button("📥 DESCARGAR PDF", data['pdf'], data['nombre'], "application/pdf", type="primary", use_container_width=True)
+            if st.button("🔄 Nueva Cotización", use_container_width=True): reset_session()
+
     if tipo_cliente != "Cliente Particular":
         st.divider()
-        with st.expander("📝 Crear Nuevo Trabajo"):
-            st.caption("Agrega un trabajo a la BD Nube.")
+        with st.expander("📝 Crear Nuevo Trabajo (Admin)"):
             nuevo_cat = st.selectbox("Categoría", df_precios['Categoria'].unique())
             nuevo_nombre = st.text_input("Nombre del Trabajo")
             nuevo_costo = st.number_input("Costo ($)", min_value=0, step=5000)
-            if st.button("💾 Guardar"):
+            if st.button("💾 Guardar Item"):
                 if nuevo_nombre and nuevo_costo > 0:
                     guardar_nuevo_item(nuevo_cat, nuevo_nombre, nuevo_costo)
                     st.success("Guardado."); time.sleep(1); st.rerun()
-                else: st.error("Faltan datos")
-
-# --- HEADER Y LOGICA ---
-watermark_file = None; logo_header = None 
-if tipo_cliente == "Cliente Particular": watermark_file = None; logo_header = None; categorias_a_mostrar = [] 
-elif tipo_cliente == "Gendarmería de Chile": watermark_file = encontrar_imagen("gendarmeria"); logo_header = watermark_file; categorias_a_mostrar = df_precios['Categoria'].unique()
-else: watermark_file = encontrar_imagen("ambulancia"); logo_header = watermark_file; categorias_a_mostrar = df_precios['Categoria'].unique()
-
-c1, c2 = st.columns([1, 5])
-with c1:
-    if logo_header: st.image(logo_header, width=120) 
-    else: st.markdown("# 🔧") 
-with c2:
-    st.title("Sistema de Cotizaciones")
-    if is_admin: st.markdown(f"#### 👤 Supervisor: Gabriel | Modo: **Oficial** | Cliente: **{tipo_cliente}**")
-    else: st.markdown(f"#### 👤 Usuario: {EMPRESA_NOMBRE} | Modo: **Proveedor**")
-
-st.markdown("---")
-
-emojis = { "Luces y Exterior": "💡", "Carrocería y Vidrios": "🚐", "Interior Sanitario": "🏥", "Climatización y Aire": "❄️",
-    "Asientos y Tapiz": "💺", "Equipamiento y Radio": "📻", "Cabina y Tablero": "📟", "Camilla": "🚑", "Seguridad y Calabozos": "🔒"}
-
-seleccion_final = []
-
-if tipo_cliente == "Cliente Particular":
-    tabs = st.tabs(["➕ Ingreso Manual"])
-    with tabs[0]:
-        st.info("ℹ️ Modo Cliente Particular: Ingrese ítems manualmente.")
-        with st.container():
-            c1, c2, c3 = st.columns([5.5, 1.5, 2], vertical_alignment="center")
-            d_m = c1.text_input("Descripción del Trabajo")
-            q_m = c2.number_input("Cnt", min_value=0, value=1)
-            p_m = c3.number_input("Precio Unitario ($)", min_value=0, step=5000)
-            if 'lista_particular' not in st.session_state: st.session_state.lista_particular = []
-            if st.button("Agregar Ítem"):
-                if d_m and q_m > 0 and p_m > 0:
-                    st.session_state.lista_particular.append({"Descripción": d_m, "Cantidad": q_m, "Unitario_Costo": p_m, "Total_Costo": p_m*q_m, "Unitario_Venta": p_m*1.35, "Total_Venta": (p_m*1.35)*q_m})
-                    st.success("Agregado")
-            if st.session_state.lista_particular:
-                st.markdown("#### Ítems Agregados:")
-                df_part = pd.DataFrame(st.session_state.lista_particular)
-                st.table(df_part[["Descripción", "Cantidad", "Unitario_Costo", "Total_Costo"]])
-                if st.button("Limpiar Lista"): st.session_state.lista_particular = []; st.rerun()
-                seleccion_final = st.session_state.lista_particular
-else:
-    if 'lista_particular' in st.session_state: del st.session_state.lista_particular
-    tabs = st.tabs([f"{emojis.get(c, '🔧')} {c}" for c in categorias_a_mostrar] + ["➕ Manual (Temp)"])
-    if tipo_cliente == "SSAS (Servicio Salud)": col_c_db = 'Costo_SSAS'; col_v_db = 'Venta_SSAS'
-    elif tipo_cliente == "Hospital Temuco": col_c_db = 'Costo_Hosp'; col_v_db = 'Venta_Hosp'
-    else: col_c_db = 'Costo_Gend'; col_v_db = 'Venta_Gend'
-
-    for i, cat in enumerate(categorias_a_mostrar):
-        with tabs[i]:
-            df_cat = df_precios[df_precios['Categoria'] == cat]
-            items_validos = df_cat[df_cat[col_c_db] > 0]
-            if items_validos.empty: st.info("⚠️ Esta categoría no aplica para el cliente seleccionado.")
-            else:
-                for index, row in items_validos.iterrows():
-                    with st.container(): 
-                        c1, c2, c3 = st.columns([5.5, 1.5, 2], vertical_alignment="center")
-                        with c1: st.markdown(f"**{row['Trabajo']}**")
-                        key_input = f"q_{row['Trabajo']}_{index}"
-                        val = st.session_state.get(key_input, 0)
-                        qty = c2.number_input("", 0, 20, value=val, key=key_input, label_visibility="collapsed")
-                        with c3:
-                            if is_admin: st.caption(f"V: {format_clp(row[col_v_db])}"); st.caption(f"C: {format_clp(row[col_c_db])}")
-                            else: st.markdown(f"**{format_clp(row[col_c_db])}**")
-                        if qty > 0:
-                            seleccion_final.append({"Descripción": row['Trabajo'], "Cantidad": qty, "Unitario_Costo": row[col_c_db], "Total_Costo": row[col_c_db]*qty, "Unitario_Venta": row[col_v_db], "Total_Venta": row[col_v_db]*qty})
-
-    with tabs[-1]:
-        with st.container():
-            st.subheader("Item Temporal")
-            
-            if 'items_manuales_extra' not in st.session_state:
-                st.session_state.items_manuales_extra = []
-            
-            c1, c2, c3 = st.columns([5.5, 1.5, 2], vertical_alignment="center")
-            d_m = c1.text_input("Descripción del Trabajo (Manual)")
-            q_m = c2.number_input("Cant.", min_value=1, value=1, key="mq")
-            p_m = c3.number_input("Precio Unitario ($)", min_value=0, step=5000)
-            
-            if st.button("Agregar Ítem Manual"):
-                if d_m and p_m > 0:
-                    st.session_state.items_manuales_extra.append({
-                        "Descripción": f"(Extra) {d_m}", "Cantidad": q_m, "Unitario_Costo": p_m, "Total_Costo": p_m * q_m, "Unitario_Venta": p_m * 1.35, "Total_Venta": (p_m * 1.35) * q_m
-                    })
-                    st.success(f"Agregado: {d_m}")
-                else: st.warning("Ingrese descripción y precio")
-
-            if st.session_state.items_manuales_extra:
-                st.markdown("---")
-                st.markdown("###### Ítems Manuales Agregados:")
-                for idx, item in enumerate(st.session_state.items_manuales_extra):
-                    st.text(f"• {item['Cantidad']}x {item['Descripción']} - {format_clp(item['Total_Costo'])}")
-                
-                if st.button("Limpiar Manuales"):
-                    st.session_state.items_manuales_extra = []; st.rerun()
-                
-                seleccion_final.extend(st.session_state.items_manuales_extra)
-
-if seleccion_final:
-    st.markdown("---")
-    total_costo = sum(x['Total_Costo'] for x in seleccion_final)
-    total_venta = sum(x['Total_Venta'] for x in seleccion_final)
-    st.subheader("📊 Resumen Final")
-    if is_admin:
-        k1, k2, k3, k4 = st.columns(4)
-        k1.metric("Costo Neto", format_clp(total_costo))
-        k2.metric("Venta Neta", format_clp(total_venta))
-        iva = total_venta * 0.19
-        k3.metric("IVA (19%)", format_clp(iva))
-        k4.metric("Total Factura", format_clp(total_venta + iva))
-        
-        if 'presupuesto_generado' not in st.session_state:
-            if st.button("💾 FINALIZAR Y GENERAR PRESUPUESTO", type="primary"):
-                if patente_input:
-                    correlativo = obtener_y_registrar_correlativo(patente_input, usuario_final_txt, format_clp(total_venta + iva))
-                    pdf_bytes = generar_pdf_exacto(patente_input, modelo_input, usuario_final_txt, seleccion_final, total_venta, True, watermark_file, estado_trabajo, usuario_final_txt, observaciones_txt, correlativo, fotos_adjuntas)
-                    st.session_state['presupuesto_generado'] = {'pdf': pdf_bytes, 'nombre': f"Presupuesto {correlativo} - {patente_input}.pdf"}
-                    st.rerun()
-                else: st.error("Falta ingresar la patente.")
-        else:
-            data = st.session_state['presupuesto_generado']
-            st.success(f"✅ Presupuesto Generado: {data['nombre']}")
-            st.download_button("📥 DESCARGAR PDF", data['pdf'], data['nombre'], "application/pdf", type="primary", use_container_width=True)
-            if st.button("🔄 Crear Nueva Cotización"): reset_session()
-
-    else:
-        k1, k2, k3 = st.columns(3)
-        k1.metric("Neto", format_clp(total_costo))
-        iva = total_costo * 0.19
-        k2.metric("IVA (19%)", format_clp(iva))
-        k3.metric("TOTAL A PAGAR", format_clp(total_costo + iva))
-        
-        if 'presupuesto_generado' not in st.session_state:
-            if st.button("💾 FINALIZAR Y GENERAR PRESUPUESTO", type="primary"):
-                if patente_input:
-                    correlativo = obtener_y_registrar_correlativo(patente_input, usuario_final_txt, format_clp(total_costo + iva))
-                    pdf_bytes = generar_pdf_exacto(patente_input, modelo_input, "Kaufmann S.A.", seleccion_final, total_costo, False, watermark_file, estado_trabajo, usuario_final_txt, observaciones_txt, correlativo, fotos_adjuntas)
-                    st.session_state['presupuesto_generado'] = {'pdf': pdf_bytes, 'nombre': f"Presupuesto {correlativo} - {patente_input}.pdf"}
-                    st.rerun()
-                else: st.error("Falta ingresar la patente.")
-        else:
-            data = st.session_state['presupuesto_generado']
-            st.success(f"✅ Presupuesto Generado: {data['nombre']}")
-            st.download_button("📥 DESCARGAR PDF", data['pdf'], data['nombre'], "application/pdf", type="primary", use_container_width=True)
-            if st.button("🔄 Crear Nueva Cotización"): reset_session()
