@@ -15,7 +15,7 @@ from PIL import Image
 # ==========================================
 # 1. CONFIGURACIÓN Y CONEXIÓN
 # ==========================================
-st.set_page_config(page_title="Cotizador C.H.", layout="wide", page_icon="🚘")
+st.set_page_config(page_title="Cotizador C.H. Servicio Automotriz", layout="wide", page_icon="🚘")
 
 NOMBRE_HOJA_GOOGLE = "DB_Cotizador"
 
@@ -33,7 +33,7 @@ def conectar_google_sheets():
     except: return None
 
 # ==========================================
-# 2. FUNCIONES LÓGICAS (CORRELATIVOS Y DATOS)
+# 2. LÓGICA DE CORRELATIVOS
 # ==========================================
 def obtener_y_registrar_correlativo(patente, cliente, total):
     client = conectar_google_sheets()
@@ -54,7 +54,9 @@ def obtener_y_registrar_correlativo(patente, cliente, total):
         except: return "ERR-NUBE"
     else: return "OFFLINE"
 
-# BASE DE DATOS PATENTES
+# ==========================================
+# 3. BASE DE DATOS INTELIGENTE
+# ==========================================
 LISTA_GENDARMERIA = ["BYRH67", "CGZP59", "CVXV81", "DJDS43", "DRTY89", "DRTY99", "JZPJ79", "CGCR37", "GTBC75", "GXSW72", "GYPT12", "HHBL18", "HHBL19", "HKRL36", "HKRL50", "JBDP22", "JBDP23"]
 DB_HOSPITALES = {
     "CWKV42": "HOSPITAL PADRE LAS CASAS", "DLTL67": "SAMU", "FLJW92": "HOSPITAL TOLTEN", "GRCH58": "HOSPITAL LONCOCHE", "GXTD94": "HOSPITAL CUNCO", "GXTD96": "HOSPITAL MIRAFLORES", "HKPH64": "HOSPITAL CUNCO", "HKPH65": "HOSPITAL TOLTEN", "HKPH66": "HOSPITAL GALVARINO", "HKPP33": "HOSPITAL LONCOCHE", "HKPV98": "HOSPITAL LAUTARO", "HKRC82": "HOSPITAL PITRUFQUEN", "HKRC84": "HOSPITAL VILLARRICA", "HKRC85": "SAMU / VILCUN", "HRCH58": "HOSPITAL LONCOCHE", "HXRP10": "HOSPITAL TEMUCO", "HXRP11": "HOSPITAL CARAHUE", "HXRP12": "HOSPITAL CUNCO", "HXRP14": "HOSPITAL LONCOCHE", "HXRP15": "HOSPITAL GALVARINO", "HXRP16": "HOSPITAL CARAHUE", "HXRP18": "HOSPITAL PITRUFQUEN", "HXRP19": "HOSPITAL VILLARRICA", "HXRP20": "HOSPITAL TOLTEN", "HXRP21": "HOSPITAL TEMUCO", "HXRP22": "HOSPITAL VILCUN", "HXRP23": "HOSPITAL TEMUCO", "HXRP24": "HOSPITAL GORBEA", "HXRP26": "HOSPITAL LONCOCHE", "HZGX64": "SAMU", "HZGX65": "HOSPITAL VILLARRICA", "HZGX66": "HOSPITAL PITRUFQUEN", "HZGX70": "HOSPITAL TEMUCO", "JHFX18": "SAMU", "KYWG26": "SAMU", "LPCT51": "HOSPITAL TEMUCO", "LPCT53": "HOSPITAL VILLARRICA", "LZPG72": "HOSPITAL PADRE LAS CASAS", "LZPG73": "HOSPITAL PADRE LAS CASAS", "PPYV76": "HOSPITAL LONCOCHE", "RBFR24": "HOSPITAL CARAHUE", "RBFR25": "HOSPITAL PITRUFQUEN", "RBFR28": "HOSPITAL SAAVEDRA", "RBFR29": "HOSPITAL TOLTEN", "RBFR30": "HOSPITAL VILCUN", "SHLF84": "HOSPITAL TEMUCO", "SHLF85": "HOSPITAL GORBEA", "SYTG24": "HOSPITAL NUEVA IMPERIAL"
@@ -157,7 +159,7 @@ def guardar_nuevo_item(categoria, nombre, costo):
     return False
 
 # ==========================================
-# 3. UTILS Y ESTILOS
+# 5. UTILS Y ESTILOS
 # ==========================================
 EMPRESA_NOMBRE = "C.H. SERVICIO AUTOMOTRIZ"
 RUT_EMPRESA = "13.961.700-2" 
@@ -195,7 +197,7 @@ st.markdown("""
 df_precios = cargar_datos()
 
 # ==========================================
-# 4. CALCULADORA (MODAL)
+# 6. CALCULADORA (MODAL)
 # ==========================================
 @st.dialog("🧮 Calculadora Rápida")
 def abrir_calculadora():
@@ -227,7 +229,7 @@ def abrir_calculadora():
     components.html(calc_html, height=280)
 
 # ==========================================
-# 5. PDF
+# 7. PDF
 # ==========================================
 class PDF(FPDF):
     def __init__(self, logo_header=None, correlativo=""):
@@ -346,14 +348,13 @@ def generar_pdf_exacto(patente, modelo, cliente_nombre, items, total_neto, is_of
     return pdf.output(dest='S').encode('latin-1')
 
 # ==========================================
-# 9. UI PRINCIPAL (FLUJO PASO A PASO)
+# 8. UI PRINCIPAL (FLUJO PASO A PASO)
 # ==========================================
 with st.sidebar:
     logo_mercedes = encontrar_imagen("mercedes")
     if logo_mercedes: st.image(logo_mercedes, width=60)
     else: st.markdown("# 🏎️")
     
-    # 1. BOTÓN CALCULADORA
     if st.button("🧮 Abrir Calculadora", use_container_width=True):
         abrir_calculadora()
     
@@ -384,32 +385,55 @@ if st.session_state.paso_actual == 1:
         patente = st.text_input("Ingrese Patente", placeholder="Ej: HX-RP10", key="input_patente_inicio").upper()
         
         # Lógica de detección en vivo
+        auto_index = 0
+        usuario_detectado = None
         if patente:
             usuario, tipo = detectar_cliente_automatico(patente)
             if usuario:
                 st.success(f"✅ Vehículo reconocido: {usuario}")
-                st.info(f"Cliente sugerido: {tipo}")
+                usuario_detectado = usuario
+                # Mapear tipo a indice
+                if tipo == "SSAS (Servicio Salud)": auto_index = 1
+                elif tipo == "Hospital Temuco": auto_index = 2
+                elif tipo == "Gendarmería de Chile": auto_index = 3
+                elif tipo == "Cliente Particular": auto_index = 4
             else:
                 st.warning("⚠️ Patente no registrada. Seleccione institución manualmente.")
         
-        tipo_cliente = st.selectbox("Institución / Cliente", 
-            ("SSAS (Servicio Salud)", "Hospital Temuco", "Gendarmería de Chile", "Cliente Particular"),
-            index=2 if patente and "GENDARMERÍA" in str(detectar_cliente_automatico(patente)) else 0
+        opciones_cliente = (
+            "--- Seleccione Institución ---",
+            "SSAS (Servicio Salud)", 
+            "Hospital Temuco", 
+            "Gendarmería de Chile", 
+            "Cliente Particular"
         )
         
+        # El selectbox usa el índice detectado, o se queda en 0 (Seleccione...)
+        tipo_cliente = st.selectbox("Institución / Cliente", opciones_cliente, index=auto_index)
+        
         if st.button("🚀 COMENZAR COTIZACIÓN", type="primary", use_container_width=True):
-            if patente:
+            # BLOQUEO DE SEGURIDAD
+            if tipo_cliente == "--- Seleccione Institución ---":
+                st.error("⛔ Debe seleccionar una institución válida para continuar.")
+            elif not patente:
+                st.error("⛔ Debe ingresar una patente.")
+            else:
+                # GUARDAR Y AVANZAR
                 st.session_state.patente_confirmada = patente
                 st.session_state.tipo_cliente_confirmado = tipo_cliente
-                # Guardar usuario final
-                u_auto, t_auto = detectar_cliente_automatico(patente)
-                st.session_state.usuario_final_confirmado = u_auto if u_auto else "HOSPITAL [ESPECIFICAR]"
-                if tipo_cliente == "Cliente Particular": st.session_state.usuario_final_confirmado = "CLIENTE PARTICULAR"
+                
+                # Definir usuario final
+                if usuario_detectado:
+                    st.session_state.usuario_final_confirmado = usuario_detectado
+                elif tipo_cliente == "Cliente Particular":
+                    st.session_state.usuario_final_confirmado = "CLIENTE PARTICULAR"
+                elif tipo_cliente == "Gendarmería de Chile":
+                    st.session_state.usuario_final_confirmado = "GENDARMERÍA DE CHILE"
+                else:
+                    st.session_state.usuario_final_confirmado = "HOSPITAL [ESPECIFICAR]"
                 
                 st.session_state.paso_actual = 2
                 st.rerun()
-            else:
-                st.error("Por favor ingrese una patente.")
 
 # --- PASO 2: COTIZADOR COMPLETO ---
 elif st.session_state.paso_actual == 2:
