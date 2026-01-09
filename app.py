@@ -172,7 +172,7 @@ def format_clp(value):
     except: return "$0"
 
 def reset_session():
-    # Limpiar parámetros URL también
+    # Limpia parámetros URL y estado
     st.query_params.clear()
     for key in list(st.session_state.keys()):
         del st.session_state[key]
@@ -331,22 +331,39 @@ def generar_pdf_exacto(patente, modelo, cliente_nombre, items, total_neto, is_of
     firmante = "KAUFMANN S.A." if is_official else EMPRESA_NOMBRE
     pdf.ln(5); pdf.cell(0, 5, firmante, 0, 1, 'C')
 
+    # --- PÁGINA DE FOTOS CON GRILLA 2x2 ---
     if fotos_adjuntas:
-        pdf.add_page(); pdf.set_font('Arial', 'B', 14); pdf.set_text_color(20, 20, 60)
-        pdf.cell(0, 10, "REGISTRO FOTOGRÁFICO", 0, 1, 'C'); pdf.ln(5)
+        pdf.add_page()
+        pdf.set_font('Arial', 'B', 14); pdf.set_text_color(20, 20, 60)
+        pdf.cell(0, 10, "REGISTRO FOTOGRÁFICO", 0, 1, 'C')
+        pdf.ln(5)
+        
+        # Configuracion Grilla
+        margin_x = 15; margin_y = 40
+        w_photo = 85; h_photo = 85
+        col_gap = 10; row_gap = 10
+        
         for i, foto_uploaded in enumerate(fotos_adjuntas):
+            # Nueva página cada 4 fotos (excepto la primera)
+            if i > 0 and i % 4 == 0:
+                pdf.add_page()
+                pdf.cell(0, 10, "REGISTRO FOTOGRÁFICO (Cont.)", 0, 1, 'C')
+            
+            # Calcular posición
+            pos_page = i % 4
+            row = pos_page // 2; col = pos_page % 2
+            x = margin_x + (col * (w_photo + col_gap))
+            y = margin_y + (row * (h_photo + row_gap))
+            
             try:
                 img = Image.open(foto_uploaded).convert('RGB')
-                if img.width > 1000:
-                    ratio = 1000 / img.width
-                    img = img.resize((1000, int(img.height * ratio)))
+                img.thumbnail((600, 600)) # Compresion
                 temp_filename = f"temp_img_{i}.jpg"
-                img.save(temp_filename, quality=50, optimize=True)
-                x_pos = (210 - 150) / 2
-                if pdf.get_y() > 200: pdf.add_page()
-                pdf.image(temp_filename, x=x_pos, w=150); pdf.ln(5)
+                img.save(temp_filename, quality=60, optimize=True)
+                pdf.image(temp_filename, x=x, y=y, w=w_photo, h=h_photo) # Forzar cuadrado visual
                 os.remove(temp_filename)
             except: pass
+
     return pdf.output(dest='S').encode('latin-1')
 
 # ==========================================
@@ -371,14 +388,12 @@ with st.sidebar:
         if is_admin: st.success("Acceso Concedido")
 
 # === GESTIÓN DE PASOS ===
-# Verificar si hay parámetros en la URL para restaurar sesión (Anti-Reinicio)
 if 'paso_actual' not in st.session_state:
     params = st.query_params
     if "patente" in params and "paso" in params:
         st.session_state.paso_actual = int(params["paso"])
         st.session_state.patente_confirmada = params["patente"]
         st.session_state.tipo_cliente_confirmado = params.get("cliente", "Cliente Particular")
-        # Restaurar usuario
         u_auto, t_auto = detectar_cliente_automatico(st.session_state.patente_confirmada)
         st.session_state.usuario_final_confirmado = u_auto if u_auto else "HOSPITAL [ESPECIFICAR]"
     else:
@@ -426,7 +441,6 @@ if st.session_state.paso_actual == 1:
             elif not patente:
                 st.error("⛔ Debe ingresar una patente.")
             else:
-                # GUARDAR Y AVANZAR (Persistencia URL)
                 st.query_params["patente"] = patente
                 st.query_params["cliente"] = tipo_cliente
                 st.query_params["paso"] = "2"
@@ -547,27 +561,16 @@ elif st.session_state.paso_actual == 2:
             total_final = total_costo + iva; k3.metric("TOTAL A PAGAR", format_clp(total_final))
 
         observaciones_txt = st.text_area("Notas / Observaciones:", height=100)
-        st.markdown("### 📸 Fotografías (Cámara integrada)")
-        
-        # WIDGET CÁMARA INTEGRADA (ANTI-REINICIO)
-        foto_camara = st.camera_input("Tomar foto con la cámara", label_visibility="collapsed")
-        
-        st.caption("O subir desde galería:")
-        fotos_galeria = st.file_uploader("Subir archivos", accept_multiple_files=True, type=['jpg', 'png', 'jpeg'], label_visibility="collapsed")
-        
-        # Combinar fotos
-        fotos_totales = []
-        if foto_camara: fotos_totales.append(foto_camara)
-        if fotos_galeria: fotos_totales.extend(fotos_galeria)
-
+        st.markdown("### 📸 Fotografías")
+        fotos_adjuntas = st.file_uploader("Adjuntar evidencia", accept_multiple_files=True, type=['jpg', 'png', 'jpeg'])
         estado_trabajo = st.radio("Estado:", ("En Espera de Aprobación", "Trabajo Realizado"))
 
         if 'presupuesto_generado' not in st.session_state:
             if st.button("💾 FINALIZAR Y GENERAR PRESUPUESTO", type="primary", use_container_width=True):
                 correlativo = obtener_y_registrar_correlativo(patente_input, usuario_final_txt, format_clp(total_final))
                 
-                if is_admin: pdf_bytes = generar_pdf_exacto(patente_input, "SPRINTER", usuario_final_txt, seleccion_final, total_venta, True, watermark_file, estado_trabajo, usuario_final_txt, observaciones_txt, correlativo, fotos_totales)
-                else: pdf_bytes = generar_pdf_exacto(patente_input, "SPRINTER", "Kaufmann S.A.", seleccion_final, total_costo, False, watermark_file, estado_trabajo, usuario_final_txt, observaciones_txt, correlativo, fotos_totales)
+                if is_admin: pdf_bytes = generar_pdf_exacto(patente_input, "SPRINTER", usuario_final_txt, seleccion_final, total_venta, True, watermark_file, estado_trabajo, usuario_final_txt, observaciones_txt, correlativo, fotos_adjuntas)
+                else: pdf_bytes = generar_pdf_exacto(patente_input, "SPRINTER", "Kaufmann S.A.", seleccion_final, total_costo, False, watermark_file, estado_trabajo, usuario_final_txt, observaciones_txt, correlativo, fotos_adjuntas)
                 
                 st.session_state['presupuesto_generado'] = {'pdf': pdf_bytes, 'nombre': f"Presupuesto {correlativo} - {patente_input}.pdf"}
                 st.rerun()
