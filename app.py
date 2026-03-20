@@ -159,13 +159,16 @@ def guardar_nuevo_item(categoria, nombre, costo):
     return False
 
 # ==========================================
-# 5. UTILS Y ESTILOS
+# 5. UTILS Y ESTILOS (AQUÍ ESTÁ LA MAGIA CLÍNICA)
 # ==========================================
 EMPRESA_NOMBRE = "C.H. SERVICIO AUTOMOTRIZ"
 RUT_EMPRESA = "13.961.700-2" 
 DIRECCION = "Francisco Pizarro 495, Padre las Casas, Región de la Araucanía"
 TELEFONO = "+56 9 8922 0616"
 EMAIL = "c.h.servicioautomotriz@gmail.com"
+
+COLOR_PRIMARIO = "#0A2540" # Azul Marino Institucional
+COLOR_SECUNDARIO = "#00A4E4" # Celeste Médico
 
 def format_clp(value):
     try: return f"${float(value):,.0f}".replace(",", ".")
@@ -184,34 +187,41 @@ def encontrar_imagen(nombre_base):
         if os.path.exists(nombre_base.capitalize() + ext): return nombre_base.capitalize() + ext
     return None
 
-st.markdown("""
+st.markdown(f"""
 <style>
-    .stTabs [aria-selected="true"] { background-color: #0054a6 !important; color: white !important; }
-    .stTabs [data-baseweb="tab"] { background-color: #f0f2f6; color: #31333F; }
-    .stContainer { border: 1px solid rgba(128, 128, 128, 0.2); border-radius: 8px; padding: 10px; margin-bottom: 5px; }
-    div[data-testid="stNumberInput"] input { max-width: 100px; text-align: center; }
-    input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
-    .big-font { font-size:20px !important; font-weight: bold; }
+    .stApp {{ background-color: #f8f9fa; }}
+    .stTabs [aria-selected="true"] {{ background-color: {COLOR_PRIMARIO} !important; color: white !important; }}
+    .stTabs [data-baseweb="tab"] {{ background-color: #f0f2f6; color: {COLOR_PRIMARIO}; font-weight: bold; }}
+    .stContainer {{ border: 1px solid rgba(128, 128, 128, 0.2); border-radius: 8px; padding: 10px; margin-bottom: 5px; }}
+    div[data-testid="stNumberInput"] input {{ max-width: 100px; text-align: center; }}
+    input[type=number]::-webkit-inner-spin-button {{ -webkit-appearance: none; margin: 0; }}
+    .big-font {{ font-size:20px !important; font-weight: bold; }}
+    
+    /* Botones Clínicos */
+    .stButton > button[kind="primary"] {{ background-color: {COLOR_PRIMARIO} !important; border-color: {COLOR_PRIMARIO} !important; color: white !important; font-weight: bold; }}
+    .stButton > button[kind="primary"]:hover {{ background-color: {COLOR_SECUNDARIO} !important; border-color: {COLOR_SECUNDARIO} !important; }}
+    
+    h1, h2, h3, h4 {{ color: {COLOR_PRIMARIO} !important; }}
 </style>
 """, unsafe_allow_html=True)
 
 df_precios = cargar_datos()
 
 # ==========================================
-# 6. CALCULADORA
+# 6. CALCULADORA (ACTUALIZADA A CLÍNICA)
 # ==========================================
 @st.dialog("🧮 Calculadora Rápida")
 def abrir_calculadora():
-    calc_html = """<!DOCTYPE html><html><head><style>
-        body { margin: 0; font-family: sans-serif; background: transparent; }
-        .calculator { background: #2d2d2d; border-radius: 10px; padding: 10px; box-shadow: 0 4px 15px rgba(0,0,0,0.3); border: 1px solid #444; }
-        .display { background: #eee; border-radius: 5px; margin-bottom: 10px; padding: 10px; text-align: right; font-size: 20px; font-weight: bold; color: #333; height: 30px;}
-        .grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 5px; }
-        button { padding: 10px; border: none; border-radius: 5px; font-size: 14px; font-weight: bold; cursor: pointer; transition: 0.1s; }
-        .num { background: #555; color: white; } .num:hover { background: #666; }
-        .op { background: #ff9f0a; color: white; } .op:hover { background: #ffb03b; }
-        .clear { background: #a5a5a5; color: black; } .clear:hover { background: #d4d4d4; }
-        .eq { background: #007aff; color: white; grid-column: span 2; } .eq:hover { background: #006ce6; }
+    calc_html = f"""<!DOCTYPE html><html><head><style>
+        body {{ margin: 0; font-family: sans-serif; background: transparent; }}
+        .calculator {{ background: #2d2d2d; border-radius: 10px; padding: 10px; box-shadow: 0 4px 15px rgba(0,0,0,0.3); border: 1px solid #444; }}
+        .display {{ background: #eee; border-radius: 5px; margin-bottom: 10px; padding: 10px; text-align: right; font-size: 20px; font-weight: bold; color: #333; height: 30px;}}
+        .grid {{ display: grid; grid-template-columns: repeat(4, 1fr); gap: 5px; }}
+        button {{ padding: 10px; border: none; border-radius: 5px; font-size: 14px; font-weight: bold; cursor: pointer; transition: 0.1s; }}
+        .num {{ background: #555; color: white; }} .num:hover {{ background: #666; }}
+        .op {{ background: {COLOR_SECUNDARIO}; color: white; }} .op:hover {{ background: {COLOR_PRIMARIO}; }}
+        .clear {{ background: #a5a5a5; color: black; }} .clear:hover {{ background: #d4d4d4; }}
+        .eq {{ background: {COLOR_PRIMARIO}; color: white; grid-column: span 2; }} .eq:hover {{ background: {COLOR_SECUNDARIO}; }}
     </style></head><body>
     <div class="calculator"><div class="display" id="disp">0</div><div class="grid">
         <button class="clear" onclick="clr()">C</button><button class="clear" onclick="del()">⌫</button><button class="op" onclick="app('/')">÷</button><button class="op" onclick="app('*')">×</button>
@@ -222,10 +232,10 @@ def abrir_calculadora():
     </div></div>
     <script>
         let d = document.getElementById('disp');
-        function app(v){ if(d.innerText=='0')d.innerText=''; d.innerText+=v; }
-        function clr(){ d.innerText='0'; }
-        function del(){ d.innerText=d.innerText.slice(0,-1)||'0'; }
-        function calc(){ try{ d.innerText=eval(d.innerText); }catch{ d.innerText='Error'; } }
+        function app(v){{ if(d.innerText=='0')d.innerText=''; d.innerText+=v; }}
+        function clr(){{ d.innerText='0'; }}
+        function del(){{ d.innerText=d.innerText.slice(0,-1)||'0'; }}
+        function calc(){{ try{{ d.innerText=eval(d.innerText); }}catch{{ d.innerText='Error'; }} }}
     </script></body></html>"""
     components.html(calc_html, height=280)
 
