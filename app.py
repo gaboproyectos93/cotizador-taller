@@ -98,7 +98,6 @@ def limpiar_patente(texto):
 def cargar_directorio_patentes():
     client = conectar_google_sheets()
     
-    # Listas históricas para autocompletar si la hoja es nueva
     default_gend = [["BYRH67", "GENDARMERÍA DE CHILE"], ["CGZP59", "GENDARMERÍA DE CHILE"], ["CVXV81", "GENDARMERÍA DE CHILE"], ["DJDS43", "GENDARMERÍA DE CHILE"], ["DRTY89", "GENDARMERÍA DE CHILE"], ["DRTY99", "GENDARMERÍA DE CHILE"], ["JZPJ79", "GENDARMERÍA DE CHILE"], ["CGCR37", "GENDARMERÍA DE CHILE"], ["GTBC75", "GENDARMERÍA DE CHILE"], ["GXSW72", "GENDARMERÍA DE CHILE"], ["GYPT12", "GENDARMERÍA DE CHILE"], ["HHBL18", "GENDARMERÍA DE CHILE"], ["HHBL19", "GENDARMERÍA DE CHILE"], ["HKRL36", "GENDARMERÍA DE CHILE"], ["HKRL50", "GENDARMERÍA DE CHILE"], ["JBDP22", "GENDARMERÍA DE CHILE"], ["JBDP23", "GENDARMERÍA DE CHILE"]]
     
     default_hosp = {
@@ -137,67 +136,73 @@ def detectar_cliente_automatico(patente_input):
             return "GENDARMERÍA DE CHILE", "Gendarmería de Chile"
         elif "TEMUCO" in institucion:
             return institucion, "Hospital Temuco"
+        elif "VILLARRICA" in institucion:
+            return institucion, "Hospital Villarrica"
+        elif "LAUTARO" in institucion:
+            return institucion, "Hospital Lautaro"
+        elif "PITRUFQUEN" in institucion or "PITRUFQUÉN" in institucion:
+            return institucion, "Hospital Pitrufquén"
         else:
             return institucion, "SSAS (Servicio Salud)"
             
     return None, None
 
-DATOS_MAESTROS = """Categoria,Trabajo,Costo_SSAS,Costo_Hosp,Costo_Gend
-Cabina y Tablero,Reparación circuito eléctrico tablero,180000,189000,215800
-Equipamiento y Radio,Cambiar sirena y parlante con accesorios,893700,600000,895670
-Cabina y Tablero,Reparación eléctrica Balizas/Sirena/Luces,280000,294000,280000
-Equipamiento y Radio,Cambiar inversor de corriente (2500W),845000,887250,895400
-Luces y Exterior,Cambio foco perimetral,195000,204750,212630
-Luces y Exterior,Cambio foco escena,195000,204750,212630
-Luces y Exterior,Cambio foco faenero,74900,78645,74900
-Luces y Exterior,Cambio baliza barral doble LED,1485700,1559985,1505300
-Luces y Exterior,Cambio focos iluminación interior (x unidad),68900,72345,68600
-Luces y Exterior,Instalación focos adicionales LED (Kit Neblineros),0,0,125500
-Seguridad y Calabozos,Reparación sistema tecno vigilancia (Cámaras),0,0,290000
-Luces y Exterior,Instalación alarma advertencia retroceso,0,0,79300
-Climatización y Aire,Cambio control de calefacción,0,0,145200
-Climatización y Aire,Cambiar llave de paso de calefacción,0,0,95600
-Climatización y Aire,Reparación de sistema de calefacción,0,0,290000
-Climatización y Aire,Carga Aire Acondicionado,45000,47250,60000
-Climatización y Aire,Cambio de compresor A/C,0,0,580900
-Climatización y Aire,Reparación sistema eléctrico A/C,0,0,290000
-Climatización y Aire,Cambio de presostato sistema A/C,0,0,145000
-Climatización y Aire,Cambiar mangueras de A/C,0,0,90000
-Climatización y Aire,Reparar línea de A/C,0,0,180000
-Climatización y Aire,Radiador de aire acondicionado,0,0,350000
-Climatización y Aire,Cambio filtro deshidratante,0,0,450000
-Climatización y Aire,Cambio válvula de expansión,0,0,165000
-Climatización y Aire,Reparación de evaporador,0,0,480000
-Climatización y Aire,Cambio de evaporador,0,0,480000
-Carrocería y Vidrios,Lámina seguridad transparente parabrisas (4 micras),120000,126000,140000
-Carrocería y Vidrios,Lámina seguridad 8 micras color (Ventana Puerta),75000,78750,75000
-Carrocería y Vidrios,Grabado de patente (Parabrisas/Ventanas/Espejos) x unidad,0,0,10000
-Interior Sanitario,Goma para piso interior cabina (x metro),45000,47250,45000
-Asientos y Tapiz,Reparación de tapices de asientos,65000,68250,65000
-Asientos y Tapiz,Cambio tapices asientos cabina y calabozos,130000,136500,130000
-Climatización y Aire,Extractores de aire (calabozo),390000,409500,390000
-Carrocería y Vidrios,Servicio Ploteo emblemas corporativos (x pieza),60000,63000,65000
-Seguridad y Calabozos,Reparación/Acondicionamiento Calabozos (m2),120000,126000,120000
-Seguridad y Calabozos,Modificaciones estructuras de móviles (m2),120000,126000,120000
-Seguridad y Calabozos,Protecciones metálicas/Mallas (m2),120000,126000,120000
-Interior Sanitario,Reparar línea de oxígeno central (x línea),180000,189000,180000
-Interior Sanitario,Reparar línea de aspiración paciente (x línea),165000,173250,180000
-Asientos y Tapiz,Tapizado de asiento de paramédico,125000,131250,130000
-Asientos y Tapiz,Tapizado de asiento longitudinal,90000,94500,130000
-Asientos y Tapiz,Cambio de asiento de paramédico,475800,499590,495000
-Asientos y Tapiz,Cambio de asiento longitudinal,160000,168000,210000
-Camilla,Tapizado de colchoneta de camilla,120000,126000,126000
-Carrocería y Vidrios,Cambio de vidrio de puerta Corredera lateral,290000,304500,290000
-Carrocería y Vidrios,Láminas Seguridad 10 micras (Ventanas),75000,78750,75000
-Interior Sanitario,Cambio de luces interiores de gabinete sanitario,58000,60900,58000
-Interior Sanitario,Cambiar conjunto motor A/C gabinete,765000,803250,765000
-Equipamiento y Radio,Instalar Radio Transmisor Antena y acc.,1143650,1200832.5,1143650
-Equipamiento y Radio,Cambiar botonera accesorios emergencia,28900,30345,28900
-Camilla,Cambiar colchoneta de camilla,90000,94500,90000
-Camilla,Reparar Camilla (respaldo elevación),345800,363090,345800
-Camilla,Reparar Camilla (vástagos y pasadores),165765,174053,165765
-Camilla,Cambiar 1 Rueda de Camilla,135800,142590,135800
-Camilla,Aceitar y lubricar partes articuladas camilla,90000,94500,90000"""
+DATOS_MAESTROS = """Categoria,Trabajo,Costo_SSAS,Costo_Hosp_Temuco,Costo_Hosp_Villarrica,Costo_Hosp_Lautaro,Costo_Hosp_Pitrufquen,Costo_Gend
+Cabina y Tablero,Reparación circuito eléctrico tablero,180000,189000,180000,180000,180000,215800
+Equipamiento y Radio,Cambiar sirena y parlante con accesorios,893700,600000,893700,893700,893700,895670
+Cabina y Tablero,Reparación eléctrica Balizas/Sirena/Luces,280000,294000,280000,280000,280000,280000
+Equipamiento y Radio,Cambiar inversor de corriente (2500W),845000,887250,845000,845000,845000,895400
+Luces y Exterior,Cambio foco perimetral,195000,204750,195000,195000,195000,212630
+Luces y Exterior,Cambio foco escena,195000,204750,195000,195000,195000,212630
+Luces y Exterior,Cambio foco faenero,74900,78645,74900,74900,74900,74900
+Luces y Exterior,Cambio baliza barral doble LED,1485700,1559985,1485700,1485700,1485700,1505300
+Luces y Exterior,Cambio focos iluminación interior (x unidad),68900,72345,68900,68900,68900,68600
+Luces y Exterior,Instalación focos adicionales LED (Kit Neblineros),0,0,0,0,0,125500
+Seguridad y Calabozos,Reparación sistema tecno vigilancia (Cámaras),0,0,0,0,0,290000
+Luces y Exterior,Instalación alarma advertencia retroceso,0,0,0,0,0,79300
+Climatización y Aire,Cambio control de calefacción,0,0,0,0,0,145200
+Climatización y Aire,Cambiar llave de paso de calefacción,0,0,0,0,0,95600
+Climatización y Aire,Reparación de sistema de calefacción,0,0,0,0,0,290000
+Climatización y Aire,Carga Aire Acondicionado,45000,47250,45000,45000,45000,60000
+Climatización y Aire,Cambio de compresor A/C,0,0,0,0,0,580900
+Climatización y Aire,Reparación sistema eléctrico A/C,0,0,0,0,0,290000
+Climatización y Aire,Cambio de presostato sistema A/C,0,0,0,0,0,145000
+Climatización y Aire,Cambiar mangueras de A/C,0,0,0,0,0,90000
+Climatización y Aire,Reparar línea de A/C,0,0,0,0,0,180000
+Climatización y Aire,Radiador de aire acondicionado,0,0,0,0,0,350000
+Climatización y Aire,Cambio filtro deshidratante,0,0,0,0,0,450000
+Climatización y Aire,Cambio válvula de expansión,0,0,0,0,0,165000
+Climatización y Aire,Reparación de evaporador,0,0,0,0,0,480000
+Climatización y Aire,Cambio de evaporador,0,0,0,0,0,480000
+Carrocería y Vidrios,Lámina seguridad transparente parabrisas (4 micras),120000,126000,120000,120000,120000,140000
+Carrocería y Vidrios,Lámina seguridad 8 micras color (Ventana Puerta),75000,78750,75000,75000,75000,75000
+Carrocería y Vidrios,Grabado de patente (Parabrisas/Ventanas/Espejos) x unidad,0,0,0,0,0,10000
+Interior Sanitario,Goma para piso interior cabina (x metro),45000,47250,45000,45000,45000,45000
+Asientos y Tapiz,Reparación de tapices de asientos,65000,68250,65000,65000,65000,65000
+Asientos y Tapiz,Cambio tapices asientos cabina y calabozos,130000,136500,130000,130000,130000,130000
+Climatización y Aire,Extractores de aire (calabozo),390000,409500,390000,390000,390000,390000
+Carrocería y Vidrios,Servicio Ploteo emblemas corporativos (x pieza),60000,63000,60000,60000,60000,65000
+Seguridad y Calabozos,Reparación/Acondicionamiento Calabozos (m2),120000,126000,120000,120000,120000,120000
+Seguridad y Calabozos,Modificaciones estructuras de móviles (m2),120000,126000,120000,120000,120000,120000
+Seguridad y Calabozos,Protecciones metálicas/Mallas (m2),120000,126000,120000,120000,120000,120000
+Interior Sanitario,Reparar línea de oxígeno central (x línea),180000,189000,180000,180000,180000,180000
+Interior Sanitario,Reparar línea de aspiración paciente (x línea),165000,173250,165000,165000,165000,180000
+Asientos y Tapiz,Tapizado de asiento de paramédico,125000,131250,125000,125000,125000,130000
+Asientos y Tapiz,Tapizado de asiento longitudinal,90000,94500,90000,90000,90000,130000
+Asientos y Tapiz,Cambio de asiento de paramédico,475800,499590,475800,475800,475800,495000
+Asientos y Tapiz,Cambio de asiento longitudinal,160000,168000,160000,160000,160000,210000
+Camilla,Tapizado de colchoneta de camilla,120000,126000,120000,120000,120000,126000
+Carrocería y Vidrios,Cambio de vidrio de puerta Corredera lateral,290000,304500,290000,290000,290000,290000
+Carrocería y Vidrios,Láminas Seguridad 10 micras (Ventanas),75000,78750,75000,75000,75000,75000
+Interior Sanitario,Cambio de luces interiores de gabinete sanitario,58000,60900,58000,58000,58000,58000
+Interior Sanitario,Cambiar conjunto motor A/C gabinete,765000,803250,765000,765000,765000,765000
+Equipamiento y Radio,Instalar Radio Transmisor Antena y acc.,1143650,1200832.5,1143650,1143650,1143650,1143650
+Equipamiento y Radio,Cambiar botonera accesorios emergencia,28900,30345,28900,28900,28900,28900
+Camilla,Cambiar colchoneta de camilla,90000,94500,90000,90000,90000,90000
+Camilla,Reparar Camilla (respaldo elevación),345800,363090,345800,345800,345800,345800
+Camilla,Reparar Camilla (vástagos y pasadores),165765,174053,165765,165765,165765,165765
+Camilla,Cambiar 1 Rueda de Camilla,135800,142590,135800,135800,135800,135800
+Camilla,Aceitar y lubricar partes articuladas camilla,90000,94500,90000,90000,90000,90000"""
 
 @st.cache_data(ttl=60)
 def cargar_datos():
@@ -210,11 +215,31 @@ def cargar_datos():
                 df_init = pd.read_csv(io.StringIO(DATOS_MAESTROS))
                 sheet.update([df_init.columns.values.tolist()] + df_init.values.tolist())
                 return df_init
+            
             df = pd.DataFrame(data)
+            
+            # --- AUTO-REPARADOR Y REESTRUCTURADOR DE BASE DE DATOS ---
+            cambios_realizados = False
+            
             if 'Venta_SSAS' in df.columns:
                 df = df.drop(columns=['Venta_SSAS', 'Venta_Hosp', 'Venta_Gend'], errors='ignore')
+                cambios_realizados = True
+            
+            if 'Costo_Hosp' in df.columns:
+                df.rename(columns={'Costo_Hosp': 'Costo_Hosp_Temuco'}, inplace=True)
+                # Clonar los precios de SSAS a las nuevas columnas de hospitales independientes
+                df['Costo_Hosp_Villarrica'] = df['Costo_SSAS']
+                df['Costo_Hosp_Lautaro'] = df['Costo_SSAS']
+                df['Costo_Hosp_Pitrufquen'] = df['Costo_SSAS']
+                cambios_realizados = True
+                
+            if cambios_realizados:
+                # Reordenar las columnas al nuevo formato oficial
+                cols = ['Categoria', 'Trabajo', 'Costo_SSAS', 'Costo_Hosp_Temuco', 'Costo_Hosp_Villarrica', 'Costo_Hosp_Lautaro', 'Costo_Hosp_Pitrufquen', 'Costo_Gend']
+                df = df[[c for c in cols if c in df.columns]]
                 sheet.clear()
                 sheet.update([df.columns.values.tolist()] + df.values.tolist())
+                
             return df
         except: return pd.read_csv(io.StringIO(DATOS_MAESTROS))
     return pd.read_csv(io.StringIO(DATOS_MAESTROS))
@@ -225,9 +250,12 @@ def guardar_nuevo_item(categoria, nombre, costo):
         try:
             sheet = client.open(NOMBRE_HOJA_GOOGLE).sheet1
             costo_ssas = costo
-            costo_hosp = costo * 1.05
+            costo_hosp_temuco = costo * 1.05
+            costo_hosp_villarrica = costo
+            costo_hosp_lautaro = costo
+            costo_hosp_pitrufquen = costo
             costo_gend = costo
-            sheet.append_row([categoria, nombre, costo_ssas, costo_hosp, costo_gend])
+            sheet.append_row([categoria, nombre, costo_ssas, costo_hosp_temuco, costo_hosp_villarrica, costo_hosp_lautaro, costo_hosp_pitrufquen, costo_gend])
             st.cache_data.clear(); return True
         except: return False
     return False
@@ -378,7 +406,6 @@ def generar_pdf_exacto(patente, modelo, cliente_nombre, items, total_neto, is_of
         if is_last: pdf.line(10, max_y, 200, max_y)
         pdf.set_xy(10, max_y)
 
-    # --- 1. TABLA DATOS DEL CLIENTE ---
     pdf.set_y(55) 
     pdf.set_font('Arial', 'B', 10)
     pdf.set_fill_color(10, 37, 64) 
@@ -397,7 +424,6 @@ def generar_pdf_exacto(patente, modelo, cliente_nombre, items, total_neto, is_of
         else: fila_dinamica(" ", "", "", "", is_last=True)
     pdf.ln(4)
     
-    # --- 2. TABLA DATOS DEL VEHÍCULO ---
     pdf.set_font('Arial', 'B', 10)
     pdf.set_fill_color(10, 37, 64)
     pdf.set_text_color(255, 255, 255)
@@ -408,7 +434,6 @@ def generar_pdf_exacto(patente, modelo, cliente_nombre, items, total_neto, is_of
     fila_dinamica(" Estado", str(estado_trabajo).upper(), "", "", is_last=True)
     pdf.ln(6)
 
-    # --- 3. TABLA DETALLE DE COTIZACIÓN ---
     pdf.set_font('Arial', 'B', 9)
     pdf.set_fill_color(10, 37, 64) 
     pdf.set_text_color(255, 255, 255)
@@ -434,7 +459,6 @@ def generar_pdf_exacto(patente, modelo, cliente_nombre, items, total_neto, is_of
     pdf.ln(5)
     iva = total_neto * 0.19; bruto = total_neto + iva
     
-    # --- CUADRO DE TOTALES ---
     totals_width = 60 
     safe_margin_right = 200 - totals_width
     pdf.set_x(safe_margin_right)
@@ -454,7 +478,6 @@ def generar_pdf_exacto(patente, modelo, cliente_nombre, items, total_neto, is_of
         pdf.ln(10); pdf.set_font('Arial', 'B', 9); pdf.cell(0, 6, "OBSERVACIONES / NOTAS:", 0, 1)
         pdf.set_font('Arial', '', 9); pdf.multi_cell(0, 5, observaciones, 0, 'L')
 
-    # --- ANCLAJE DE FIRMA INTELIGENTE ---
     if pdf.get_y() > 220:
         pdf.add_page()
     else:
@@ -581,15 +604,21 @@ if st.session_state.paso_actual == 1:
                 usuario_detectado = usuario
                 if tipo == "SSAS (Servicio Salud)": auto_index = 1
                 elif tipo == "Hospital Temuco": auto_index = 2
-                elif tipo == "Gendarmería de Chile": auto_index = 3
-                elif tipo == "Cliente Particular": auto_index = 4
+                elif tipo == "Hospital Villarrica": auto_index = 3
+                elif tipo == "Hospital Lautaro": auto_index = 4
+                elif tipo == "Hospital Pitrufquén": auto_index = 5
+                elif tipo == "Gendarmería de Chile": auto_index = 6
+                elif tipo == "Cliente Particular": auto_index = 7
             else:
                 st.warning("⚠️ Patente no registrada en Directorio. Seleccione institución manualmente.")
         
         opciones_cliente = (
             "--- Seleccione Institución ---",
             "SSAS (Servicio Salud)", 
-            "Hospital Temuco", 
+            "Hospital Temuco",
+            "Hospital Villarrica",
+            "Hospital Lautaro",
+            "Hospital Pitrufquén",
             "Gendarmería de Chile", 
             "Cliente Particular"
         )
@@ -668,8 +697,12 @@ elif st.session_state.paso_actual == 2:
                     seleccion_final = st.session_state.lista_particular
     else:
         tabs = st.tabs([f"{emojis.get(c, '🔧')} {c}" for c in categorias_a_mostrar] + ["➕ Manual (Temp)"])
+        
         if tipo_cliente == "SSAS (Servicio Salud)": col_c_db = 'Costo_SSAS'
-        elif tipo_cliente == "Hospital Temuco": col_c_db = 'Costo_Hosp'
+        elif tipo_cliente == "Hospital Temuco": col_c_db = 'Costo_Hosp_Temuco'
+        elif tipo_cliente == "Hospital Villarrica": col_c_db = 'Costo_Hosp_Villarrica'
+        elif tipo_cliente == "Hospital Lautaro": col_c_db = 'Costo_Hosp_Lautaro'
+        elif tipo_cliente == "Hospital Pitrufquén": col_c_db = 'Costo_Hosp_Pitrufquen'
         else: col_c_db = 'Costo_Gend'
 
         for i, cat in enumerate(categorias_a_mostrar):
