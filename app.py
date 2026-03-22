@@ -90,22 +90,56 @@ def limpiar_borrador_nube():
 # ==========================================
 # 3. BASE DE DATOS INTELIGENTE
 # ==========================================
-LISTA_GENDARMERIA = ["BYRH67", "CGZP59", "CVXV81", "DJDS43", "DRTY89", "DRTY99", "JZPJ79", "CGCR37", "GTBC75", "GXSW72", "GYPT12", "HHBL18", "HHBL19", "HKRL36", "HKRL50", "JBDP22", "JBDP23"]
-DB_HOSPITALES = {
-    "CWKV42": "HOSPITAL PADRE LAS CASAS", "DLTL67": "SAMU", "FLJW92": "HOSPITAL TOLTEN", "GRCH58": "HOSPITAL LONCOCHE", "GXTD94": "HOSPITAL CUNCO", "GXTD96": "HOSPITAL MIRAFLORES", "HKPH64": "HOSPITAL CUNCO", "HKPH65": "HOSPITAL TOLTEN", "HKPH66": "HOSPITAL GALVARINO", "HKPP33": "HOSPITAL LONCOCHE", "HKPV98": "HOSPITAL LAUTARO", "HKRC82": "HOSPITAL PITRUFQUEN", "HKRC84": "HOSPITAL VILLARRICA", "HKRC85": "SAMU / VILCUN", "HRCH58": "HOSPITAL LONCOCHE", "HXRP10": "HOSPITAL TEMUCO", "HXRP11": "HOSPITAL CARAHUE", "HXRP12": "HOSPITAL CUNCO", "HXRP14": "HOSPITAL LONCOCHE", "HXRP15": "HOSPITAL GALVARINO", "HXRP16": "HOSPITAL CARAHUE", "HXRP18": "HOSPITAL PITRUFQUEN", "HXRP19": "HOSPITAL VILLARRICA", "HXRP20": "HOSPITAL TOLTEN", "HXRP21": "HOSPITAL TEMUCO", "HXRP22": "HOSPITAL VILCUN", "HXRP23": "HOSPITAL TEMUCO", "HXRP24": "HOSPITAL GORBEA", "HXRP26": "HOSPITAL LONCOCHE", "HZGX64": "SAMU", "HZGX65": "HOSPITAL VILLARRICA", "HZGX66": "HOSPITAL PITRUFQUEN", "HZGX70": "HOSPITAL TEMUCO", "JHFX18": "SAMU", "KYWG26": "SAMU", "LPCT51": "HOSPITAL TEMUCO", "LPCT53": "HOSPITAL VILLARRICA", "LZPG72": "HOSPITAL PADRE LAS CASAS", "LZPG73": "HOSPITAL PADRE LAS CASAS", "PPYV76": "HOSPITAL LONCOCHE", "RBFR24": "HOSPITAL CARAHUE", "RBFR25": "HOSPITAL PITRUFQUEN", "RBFR28": "HOSPITAL SAAVEDRA", "RBFR29": "HOSPITAL TOLTEN", "RBFR30": "HOSPITAL VILCUN", "SHLF84": "HOSPITAL TEMUCO", "SHLF85": "HOSPITAL GORBEA", "SYTG24": "HOSPITAL NUEVA IMPERIAL"
-}
-
 def limpiar_patente(texto):
     if not texto: return ""
     return re.sub(r'[^A-Z0-9]', '', texto.upper())
 
+@st.cache_data(ttl=60)
+def cargar_directorio_patentes():
+    client = conectar_google_sheets()
+    
+    # Listas históricas para autocompletar si la hoja es nueva
+    default_gend = [["BYRH67", "GENDARMERÍA DE CHILE"], ["CGZP59", "GENDARMERÍA DE CHILE"], ["CVXV81", "GENDARMERÍA DE CHILE"], ["DJDS43", "GENDARMERÍA DE CHILE"], ["DRTY89", "GENDARMERÍA DE CHILE"], ["DRTY99", "GENDARMERÍA DE CHILE"], ["JZPJ79", "GENDARMERÍA DE CHILE"], ["CGCR37", "GENDARMERÍA DE CHILE"], ["GTBC75", "GENDARMERÍA DE CHILE"], ["GXSW72", "GENDARMERÍA DE CHILE"], ["GYPT12", "GENDARMERÍA DE CHILE"], ["HHBL18", "GENDARMERÍA DE CHILE"], ["HHBL19", "GENDARMERÍA DE CHILE"], ["HKRL36", "GENDARMERÍA DE CHILE"], ["HKRL50", "GENDARMERÍA DE CHILE"], ["JBDP22", "GENDARMERÍA DE CHILE"], ["JBDP23", "GENDARMERÍA DE CHILE"]]
+    
+    default_hosp = {
+        "CWKV42": "HOSPITAL PADRE LAS CASAS", "DLTL67": "SAMU", "FLJW92": "HOSPITAL TOLTEN", "GRCH58": "HOSPITAL LONCOCHE", "GXTD94": "HOSPITAL CUNCO", "GXTD96": "HOSPITAL MIRAFLORES", "HKPH64": "HOSPITAL CUNCO", "HKPH65": "HOSPITAL TOLTEN", "HKPH66": "HOSPITAL GALVARINO", "HKPP33": "HOSPITAL LONCOCHE", "HKPV98": "HOSPITAL LAUTARO", "HKRC82": "HOSPITAL PITRUFQUEN", "HKRC84": "HOSPITAL VILLARRICA", "HKRC85": "SAMU / VILCUN", "HRCH58": "HOSPITAL LONCOCHE", "HXRP10": "HOSPITAL TEMUCO", "HXRP11": "HOSPITAL CARAHUE", "HXRP12": "HOSPITAL CUNCO", "HXRP14": "HOSPITAL LONCOCHE", "HXRP15": "HOSPITAL GALVARINO", "HXRP16": "HOSPITAL CARAHUE", "HXRP18": "HOSPITAL PITRUFQUEN", "HXRP19": "HOSPITAL VILLARRICA", "HXRP20": "HOSPITAL TOLTEN", "HXRP21": "HOSPITAL TEMUCO", "HXRP22": "HOSPITAL VILCUN", "HXRP23": "HOSPITAL TEMUCO", "HXRP24": "HOSPITAL GORBEA", "HXRP26": "HOSPITAL LONCOCHE", "HZGX64": "SAMU", "HZGX65": "HOSPITAL VILLARRICA", "HZGX66": "HOSPITAL PITRUFQUEN", "HZGX70": "HOSPITAL TEMUCO", "JHFX18": "SAMU", "KYWG26": "SAMU", "LPCT51": "HOSPITAL TEMUCO", "LPCT53": "HOSPITAL VILLARRICA", "LZPG72": "HOSPITAL PADRE LAS CASAS", "LZPG73": "HOSPITAL PADRE LAS CASAS", "PPYV76": "HOSPITAL LONCOCHE", "RBFR24": "HOSPITAL CARAHUE", "RBFR25": "HOSPITAL PITRUFQUEN", "RBFR28": "HOSPITAL SAAVEDRA", "RBFR29": "HOSPITAL TOLTEN", "RBFR30": "HOSPITAL VILCUN", "SHLF84": "HOSPITAL TEMUCO", "SHLF85": "HOSPITAL GORBEA", "SYTG24": "HOSPITAL NUEVA IMPERIAL"
+    }
+    
+    default_data = default_gend + [[k, v] for k, v in default_hosp.items()]
+    df_default = pd.DataFrame(default_data, columns=["Patente", "Institucion"])
+    
+    if client:
+        try:
+            sheet = client.open(NOMBRE_HOJA_GOOGLE)
+            try: 
+                ws = sheet.worksheet("Directorio_Patentes")
+                data = ws.get_all_records()
+                if data:
+                    return pd.DataFrame(data)
+            except:
+                ws = sheet.add_worksheet(title="Directorio_Patentes", rows="500", cols="2")
+                ws.update([df_default.columns.values.tolist()] + df_default.values.tolist())
+                return df_default
+        except Exception:
+            pass
+    return df_default
+
 def detectar_cliente_automatico(patente_input):
     patente_clean = limpiar_patente(patente_input)
-    if patente_clean in LISTA_GENDARMERIA: return "GENDARMERÍA DE CHILE", "Gendarmería de Chile"
-    hospital = DB_HOSPITALES.get(patente_clean)
-    if hospital:
-        tipo = "Hospital Temuco" if "TEMUCO" in hospital else "SSAS (Servicio Salud)"
-        return hospital, tipo
+    if not patente_clean: return None, None
+    
+    df_patentes = cargar_directorio_patentes()
+    match = df_patentes[df_patentes['Patente'].astype(str).str.upper() == patente_clean]
+    
+    if not match.empty:
+        institucion = str(match.iloc[0]['Institucion']).upper()
+        if "GENDARMERÍA" in institucion or "GENDARMERIA" in institucion:
+            return "GENDARMERÍA DE CHILE", "Gendarmería de Chile"
+        elif "TEMUCO" in institucion:
+            return institucion, "Hospital Temuco"
+        else:
+            return institucion, "SSAS (Servicio Salud)"
+            
     return None, None
 
 DATOS_MAESTROS = """Categoria,Trabajo,Costo_SSAS,Costo_Hosp,Costo_Gend
@@ -294,7 +328,6 @@ class PDF(FPDF):
         else:
             self.cell(0, 5, "Repuestos y Servicio Técnico Mercedes-Benz", 0, 1, 'L')
         
-        # --- CABECERA OFICIAL ROJA (Estilo Pascual) ---
         self.set_xy(130, 10)
         self.set_text_color(220, 0, 0) 
         self.set_draw_color(220, 0, 0)
@@ -315,7 +348,6 @@ class PDF(FPDF):
         self.ln(15)
 
     def footer(self):
-        # Footer standard a 20mm del fondo
         self.set_y(-20); self.set_font('Arial', 'I', 8); self.line(10, 277, 200, 277)
         if not self.is_official:
             legal = DIRECCION + " | Validez oferta: 15 días. Garantía: 3 meses."
@@ -328,87 +360,69 @@ def generar_pdf_exacto(patente, modelo, cliente_nombre, items, total_neto, is_of
     pdf.is_official = is_official 
     pdf.add_page(); pdf.set_auto_page_break(auto=True, margin=30) 
     
-    # --- MOTOR DE FILAS DINÁMICAS ---
     def fila_dinamica(lbl1, val1, lbl2, val2, is_last=False):
         start_y = pdf.get_y()
-        
-        pdf.set_font('Arial', 'B', 9)
-        pdf.set_xy(10, start_y)
-        pdf.cell(25, 6, lbl1, 0, 0, 'L')
-        pdf.set_font('Arial', '', 9)
-        pdf.set_xy(35, start_y)
-        pdf.multi_cell(70, 6, f": {val1}", 0, 'L')
+        pdf.set_font('Arial', 'B', 9); pdf.set_xy(10, start_y); pdf.cell(25, 6, lbl1, 0, 0, 'L')
+        pdf.set_font('Arial', '', 9); pdf.set_xy(35, start_y); pdf.multi_cell(70, 6, f": {val1}", 0, 'L')
         y_left = pdf.get_y()
         
         y_right = start_y
         if lbl2:
-            pdf.set_font('Arial', 'B', 9)
-            pdf.set_xy(105, start_y)
-            pdf.cell(30, 6, lbl2, 0, 0, 'L')
-            pdf.set_font('Arial', '', 9)
-            pdf.set_xy(135, start_y)
-            pdf.multi_cell(65, 6, f": {val2}", 0, 'L')
+            pdf.set_font('Arial', 'B', 9); pdf.set_xy(105, start_y); pdf.cell(30, 6, lbl2, 0, 0, 'L')
+            pdf.set_font('Arial', '', 9); pdf.set_xy(135, start_y); pdf.multi_cell(65, 6, f": {val2}", 0, 'L')
             y_right = pdf.get_y()
         
         max_y = max(y_left, y_right, start_y + 6)
         pdf.line(10, start_y, 10, max_y)
         pdf.line(200, start_y, 200, max_y)
-        if is_last:
-            pdf.line(10, max_y, 200, max_y)
-            
+        if is_last: pdf.line(10, max_y, 200, max_y)
         pdf.set_xy(10, max_y)
 
     # --- 1. TABLA DATOS DEL CLIENTE ---
     pdf.set_y(55) 
     pdf.set_font('Arial', 'B', 10)
-    pdf.set_fill_color(10, 37, 64) # Azul Marino Clínico (Color Primario)
-    pdf.set_text_color(255, 255, 255) # Texto Blanco
+    pdf.set_fill_color(10, 37, 64) 
+    pdf.set_text_color(255, 255, 255)
     pdf.cell(190, 6, "  DATOS DEL CLIENTE", 1, 1, 'L', 1)
-    pdf.set_text_color(0, 0, 0) # Reseteo a negro
+    pdf.set_text_color(0, 0, 0)
     
     nom = "KAUFMANN S.A." if not is_official else cliente_nombre
     rut = "92.475.000-6" if not is_official else ""
     us_final = usuario_final_txt if not is_official else ""
     
     fila_dinamica(" Señor(es)", str(nom).upper(), " Fecha Emisión", datetime.now().strftime('%d/%m/%Y'))
-    
-    if not is_official:
-        fila_dinamica(" RUT", rut, " Usuario Final", str(us_final).upper(), is_last=True)
+    if not is_official: fila_dinamica(" RUT", rut, " Usuario Final", str(us_final).upper(), is_last=True)
     else:
         if rut: fila_dinamica(" RUT", rut, "", "", is_last=True) 
         else: fila_dinamica(" ", "", "", "", is_last=True)
-    
     pdf.ln(4)
     
     # --- 2. TABLA DATOS DEL VEHÍCULO ---
     pdf.set_font('Arial', 'B', 10)
-    pdf.set_fill_color(10, 37, 64) # Azul Marino Clínico
+    pdf.set_fill_color(10, 37, 64)
     pdf.set_text_color(255, 255, 255)
     pdf.cell(190, 6, "  DATOS DEL VEHÍCULO", 1, 1, 'L', 1)
     pdf.set_text_color(0, 0, 0)
     
     fila_dinamica(" Marca / Modelo", f"MERCEDES-BENZ {str(modelo).upper()}", " Patente", str(patente).upper())
     fila_dinamica(" Estado", str(estado_trabajo).upper(), "", "", is_last=True)
-
     pdf.ln(6)
 
     # --- 3. TABLA DETALLE DE COTIZACIÓN ---
     pdf.set_font('Arial', 'B', 9)
-    # CORRECCIÓN DE COLOR: Mismo Azul Marino Clínico para el encabezado de detalles
     pdf.set_fill_color(10, 37, 64) 
-    pdf.set_text_color(255, 255, 255) # Texto Blanco
+    pdf.set_text_color(255, 255, 255)
     pdf.cell(115, 7, "Descripción", 1, 0, 'C', 1)
     pdf.cell(15, 7, "Cant.", 1, 0, 'C', 1)
     pdf.cell(30, 7, "Unitario", 1, 0, 'C', 1)
     pdf.cell(30, 7, "Total", 1, 1, 'C', 1)
-    pdf.set_text_color(0, 0, 0) # Reseteo a negro
+    pdf.set_text_color(0, 0, 0) 
     
     pdf.set_font('Arial', '', 9)
     for item in items:
         unit = item['Unitario_Costo']
         tot = item['Total_Costo']
         x = pdf.get_x(); y = pdf.get_y()
-        # multi_cell para que el texto largo de la descripción fluya
         pdf.multi_cell(115, 6, item['Descripción'].upper(), 1, 'L')
         h = pdf.get_y() - y
         pdf.set_xy(x+115, y)
@@ -420,69 +434,46 @@ def generar_pdf_exacto(patente, modelo, cliente_nombre, items, total_neto, is_of
     pdf.ln(5)
     iva = total_neto * 0.19; bruto = total_neto + iva
     
-    # --- CUADRO DE TOTALES ALINEADO A LA DERECHA ---
-    # Se ajusta la posición X para que encaje con el borde derecho de la tabla superior
-    totals_width = 60 # 30 label + 30 value
-    safe_margin_right = 200 -totals_width
+    # --- CUADRO DE TOTALES ---
+    totals_width = 60 
+    safe_margin_right = 200 - totals_width
     pdf.set_x(safe_margin_right)
     
     pdf.set_font('Arial', 'B', 9)
     pdf.cell(30, 6, "SUB TOTAL", 1, 0, 'L'); pdf.set_font('Arial', '', 9); pdf.cell(30, 6, format_clp(total_neto), 1, 1, 'R')
-    
     pdf.set_x(safe_margin_right)
     pdf.set_font('Arial', 'B', 9); pdf.cell(30, 6, "I.V.A. (19%)", 1, 0, 'L'); pdf.set_font('Arial', '', 9); pdf.cell(30, 6, format_clp(iva), 1, 1, 'R')
-    
     pdf.set_x(safe_margin_right)
     pdf.set_font('Arial', 'B', 10)
-    # CORRECCIÓN DE COLOR Y TEXTO: Celda Final Azul Marino con Texto Blanco
     pdf.set_fill_color(10, 37, 64) 
-    pdf.set_text_color(255, 255, 255) # Texto Blanco
+    pdf.set_text_color(255, 255, 255)
     pdf.cell(30, 8, "TOTAL", 1, 0, 'L', 1); pdf.cell(30, 8, format_clp(bruto), 1, 1, 'R', 1)
-    pdf.set_text_color(0, 0, 0) # Reseteo a negro
+    pdf.set_text_color(0, 0, 0)
 
     if observaciones:
-        # Añadimos ln(5) extra para separar observaciones de totales
         pdf.ln(10); pdf.set_font('Arial', 'B', 9); pdf.cell(0, 6, "OBSERVACIONES / NOTAS:", 0, 1)
         pdf.set_font('Arial', '', 9); pdf.multi_cell(0, 5, observaciones, 0, 'L')
 
-    # --- SOLUCIÓN DE PAGING Y FIRMA (ANCLAJE INTELIGENTE) ---
-    # Calculamos la posición final deseada de la firma (Sticky bottom a -60)
-    # Si la página ya está llena, creamos una nueva, pero la firma se coloca relativamente cerca.
-    
-    break_point = 230 # Zona segura antes del fondo para decidir el salto inteligente
-    current_content_end = pdf.get_y()
-    sig_block_breaks = False
-    
-    if current_content_end > break_point:
-        # Necesitamos una página nueva por espacio, la firma NO va stuck a bottom
+    # --- ANCLAJE DE FIRMA INTELIGENTE ---
+    if pdf.get_y() > 220:
         pdf.add_page()
-        # En la nueva página, colocamos la firma arriba con unln(10)
-        pdf.ln(10)
-        signature_base_y = pdf.get_y()
-        sig_block_breaks = True
     else:
-        # Espacio suficiente, forzamos firma stuck a bottom (Y=-60)
-        pdf.set_y(-60)
-        signature_base_y = pdf.get_y()
-        sig_block_breaks = False
+        pdf.ln(15)
 
+    start_sig_y = pdf.get_y()
     logo_footer = encontrar_imagen("logo") 
+    logo_h = 30
     if logo_footer and not is_official: 
-        # Centrado horizontal approx x=75
         logo_w = 60
         centered_x = (210 - logo_w) / 2
-        # y param explicit required for Sticky y positioning logic. doc check says uses current Y if omitted, set_y done. Let's use get_y() to be sure.
-        pdf.image(logo_footer, x=centered_x, y=signature_base_y, w=logo_w)
-        pdf.ln(2) # relative space after image (if breaks) or sig text determining y will handle next line.
-
-    if sig_block_breaks:
-        # Si saltó inteligentes, LN(5) extra después del logo
-        pdf.ln(5)
-    else:
-        # Si es sticky bottom, forzamos texto a -40
-        pdf.set_y(-40)
-
-    # Texto de fecha y firma relativo al current Y
+        try:
+            with Image.open(logo_footer) as img:
+                aspect = img.height / img.width
+                logo_h = logo_w * aspect
+        except: pass
+        pdf.image(logo_footer, x=centered_x, y=start_sig_y, w=logo_w)
+        pdf.set_y(start_sig_y + logo_h + 5)
+    
     fecha = datetime.now().strftime('%d-%m-%Y')
     pdf.cell(0, 6, f"Padre las Casas, {fecha}", 0, 1, 'C')
     firmante = "KAUFMANN S.A." if is_official else EMPRESA_NOMBRE
@@ -512,7 +503,6 @@ def generar_pdf_exacto(patente, modelo, cliente_nombre, items, total_neto, is_of
                 img = Image.open(foto_uploaded)
                 img = ImageOps.exif_transpose(img) 
                 img = img.convert('RGB')
-                
                 img.thumbnail((600, 600))
                 temp_filename = f"temp_img_{i}.jpg"
                 img.save(temp_filename, quality=60, optimize=True)
@@ -594,7 +584,7 @@ if st.session_state.paso_actual == 1:
                 elif tipo == "Gendarmería de Chile": auto_index = 3
                 elif tipo == "Cliente Particular": auto_index = 4
             else:
-                st.warning("⚠️ Patente no registrada. Seleccione institución manualmente.")
+                st.warning("⚠️ Patente no registrada en Directorio. Seleccione institución manualmente.")
         
         opciones_cliente = (
             "--- Seleccione Institución ---",
@@ -694,12 +684,21 @@ elif st.session_state.paso_actual == 2:
                             with c1: st.markdown(f"**{row['Trabajo']}**")
                             key_input = f"q_{row['Trabajo']}_{index}"
                             val = st.session_state.get(key_input, 0)
+                            
                             qty = c2.number_input("", 0, 20, value=val, key=key_input, label_visibility="collapsed", on_change=guardar_borrador_nube)
+                            
                             precio_costo = float(row[col_c_db])
+                            
                             with c3:
                                 st.markdown(f"**{format_clp(precio_costo)}**")
+                                
                             if qty > 0:
-                                seleccion_final.append({"Descripción": row['Trabajo'], "Cantidad": qty, "Unitario_Costo": precio_costo, "Total_Costo": precio_costo * qty})
+                                seleccion_final.append({
+                                    "Descripción": row['Trabajo'], 
+                                    "Cantidad": qty, 
+                                    "Unitario_Costo": precio_costo, 
+                                    "Total_Costo": precio_costo * qty
+                                })
 
         with tabs[-1]:
             with st.container():
@@ -740,8 +739,10 @@ elif st.session_state.paso_actual == 2:
         if 'presupuesto_generado' not in st.session_state:
             if st.button("💾 FINALIZAR Y GENERAR PRESUPUESTO", type="primary", use_container_width=True):
                 correlativo = obtener_y_registrar_correlativo(patente_input, usuario_final_txt, format_clp(total_final))
+                
                 if is_admin: pdf_bytes = generar_pdf_exacto(patente_input, "SPRINTER", usuario_final_txt, seleccion_final, total_costo, True, watermark_file, estado_trabajo, usuario_final_txt, observaciones_txt, correlativo, fotos_adjuntas)
                 else: pdf_bytes = generar_pdf_exacto(patente_input, "SPRINTER", "Kaufmann S.A.", seleccion_final, total_costo, False, watermark_file, estado_trabajo, usuario_final_txt, observaciones_txt, correlativo, fotos_adjuntas)
+                
                 st.session_state['presupuesto_generado'] = {'pdf': pdf_bytes, 'nombre': f"Presupuesto {correlativo} - {patente_input}.pdf"}
                 limpiar_borrador_nube() 
                 st.rerun()
