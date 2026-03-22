@@ -33,7 +33,7 @@ def conectar_google_sheets():
     except: return None
 
 # ==========================================
-# 2. LÓGICA DE CORRELATIVOS Y BORRADOR
+# 2. LÓGICA DE CORRELATIVOS
 # ==========================================
 def obtener_y_registrar_correlativo(patente, cliente, total):
     client = conectar_google_sheets()
@@ -53,40 +53,6 @@ def obtener_y_registrar_correlativo(patente, cliente, total):
             return correlativo_str
         except: return "ERR-NUBE"
     else: return "OFFLINE"
-
-def guardar_borrador_nube():
-    client = conectar_google_sheets()
-    if not client: return
-    try:
-        sheet = client.open(NOMBRE_HOJA_GOOGLE)
-        try: ws = sheet.worksheet("Borrador")
-        except: ws = sheet.add_worksheet(title="Borrador", rows="2", cols="2")
-        
-        # Filtramos qué guardar: confirmaciones de paso 1, el paso actual, listas manuales y las cantidades (q_)
-        keys_to_save = ['paso_actual', 'lista_particular', 'items_manuales_extra']
-        datos = {k: v for k, v in st.session_state.items() if k.endswith('_confirmado') or k.endswith('_confirmada') or k in keys_to_save or k.startswith('q_')}
-        ws.update_acell('A1', json.dumps(datos))
-    except Exception: pass
-
-def cargar_borrador_nube():
-    client = conectar_google_sheets()
-    if not client: return None
-    try:
-        sheet = client.open(NOMBRE_HOJA_GOOGLE)
-        ws = sheet.worksheet("Borrador")
-        val = ws.acell('A1').value
-        if val: return json.loads(val)
-    except Exception: pass
-    return None
-
-def limpiar_borrador_nube():
-    client = conectar_google_sheets()
-    if not client: return
-    try:
-        sheet = client.open(NOMBRE_HOJA_GOOGLE)
-        ws = sheet.worksheet("Borrador")
-        ws.update_acell('A1', '')
-    except Exception: pass
 
 # ==========================================
 # 3. BASE DE DATOS INTELIGENTE
@@ -201,6 +167,39 @@ def guardar_nuevo_item(categoria, nombre, costo):
         except: return False
     return False
 
+def guardar_borrador_nube():
+    client = conectar_google_sheets()
+    if not client: return
+    try:
+        sheet = client.open(NOMBRE_HOJA_GOOGLE)
+        try: ws = sheet.worksheet("Borrador")
+        except: ws = sheet.add_worksheet(title="Borrador", rows="2", cols="2")
+        
+        keys_to_save = ['paso_actual', 'lista_particular', 'items_manuales_extra']
+        datos = {k: v for k, v in st.session_state.items() if k.endswith('_confirmado') or k.endswith('_confirmada') or k in keys_to_save or k.startswith('q_')}
+        ws.update_acell('A1', json.dumps(datos))
+    except Exception: pass
+
+def cargar_borrador_nube():
+    client = conectar_google_sheets()
+    if not client: return None
+    try:
+        sheet = client.open(NOMBRE_HOJA_GOOGLE)
+        ws = sheet.worksheet("Borrador")
+        val = ws.acell('A1').value
+        if val: return json.loads(val)
+    except Exception: pass
+    return None
+
+def limpiar_borrador_nube():
+    client = conectar_google_sheets()
+    if not client: return
+    try:
+        sheet = client.open(NOMBRE_HOJA_GOOGLE)
+        ws = sheet.worksheet("Borrador")
+        ws.update_acell('A1', '')
+    except Exception: pass
+
 # ==========================================
 # 5. UTILS Y ESTILOS
 # ==========================================
@@ -218,7 +217,7 @@ def format_clp(value):
     except: return "$0"
 
 def reset_session():
-    limpiar_borrador_nube() # Limpiamos el borrador al reiniciar
+    limpiar_borrador_nube()
     st.query_params.clear()
     for key in list(st.session_state.keys()):
         del st.session_state[key]
@@ -296,12 +295,26 @@ class PDF(FPDF):
             self.set_xy(45, 23); self.cell(0, 5, EMAIL, 0, 1, 'L')
         else:
             self.cell(0, 5, "Repuestos y Servicio Técnico Mercedes-Benz", 0, 1, 'L')
-        self.set_xy(130, 10); self.set_font('Arial', 'B', 14); self.set_text_color(20, 20, 60)
+        
+        # --- Formato de Cabecera Oficial (Estilo Pascual) ---
+        self.set_xy(130, 10)
+        self.set_text_color(220, 0, 0) 
+        self.set_draw_color(220, 0, 0)
+        self.set_line_width(0.4)
+        
+        self.set_font('Arial', 'B', 16)
         titulo = "COTIZACIÓN" if self.is_official else "PRESUPUESTO"
-        if self.correlativo and self.correlativo != "BORRADOR": titulo += f" N° {self.correlativo}"
-        self.cell(70, 10, titulo, 1, 1, 'C')
-        self.set_text_color(0,0,0); self.set_xy(130, 20); self.set_font('Arial', '', 10)
-        self.cell(70, 8, f"Fecha: {datetime.now().strftime('%d/%m/%Y')}", 1, 1, 'C'); self.ln(20)
+        self.cell(70, 10, titulo, 'LTR', 1, 'C') 
+        
+        self.set_x(130)
+        self.set_font('Arial', 'B', 14)
+        correlativo_txt = f"N° {self.correlativo}" if self.correlativo and self.correlativo != "BORRADOR" else "N° BORRADOR"
+        self.cell(70, 10, correlativo_txt, 'LBR', 1, 'C')
+        
+        self.set_text_color(0, 0, 0)
+        self.set_draw_color(0, 0, 0)
+        self.set_line_width(0.2)
+        self.ln(15)
 
     def footer(self):
         self.set_y(-30); self.set_font('Arial', 'I', 8); self.line(10, 265, 200, 265)
@@ -316,52 +329,98 @@ def generar_pdf_exacto(patente, modelo, cliente_nombre, items, total_neto, is_of
     pdf.is_official = is_official 
     pdf.add_page(); pdf.set_auto_page_break(auto=True, margin=30) 
     
-    pdf.set_font('Arial', 'B', 10); pdf.cell(0, 6, "IDENTIFICACIÓN DEL CLIENTE", 0, 1)
-    pdf.set_font('Arial', '', 9)
-    nom = "KAUFMANN S.A." if not is_official else cliente_nombre
-    rut = "92.475.000-6" if not is_official else "N/A"
-    pdf.cell(20, 6, "NOMBRE:",0,0); pdf.cell(80, 6, nom,0,0)
-    pdf.cell(15, 6, "RUT:",0,0); pdf.cell(0, 6, rut,0,1)
-    if not is_official:
-        pdf.set_font('Arial', 'B', 9); pdf.cell(30, 6, "USUARIO FINAL:", 0, 0)
-        pdf.set_font('Arial', '', 9); pdf.cell(0, 6, usuario_final_txt, 0, 1) 
-    else: pdf.ln(6)
-    pdf.ln(2)
+    # --- MOTOR DE FILAS DINÁMICAS (TABLAS PERFECTAS) ---
+    def fila_dinamica(lbl1, val1, lbl2, val2, is_last=False):
+        start_y = pdf.get_y()
+        
+        pdf.set_font('Arial', 'B', 9)
+        pdf.set_xy(10, start_y)
+        pdf.cell(25, 6, lbl1, 0, 0, 'L')
+        pdf.set_font('Arial', '', 9)
+        pdf.set_xy(35, start_y)
+        pdf.multi_cell(70, 6, f": {val1}", 0, 'L')
+        y_left = pdf.get_y()
+        
+        y_right = start_y
+        if lbl2:
+            pdf.set_font('Arial', 'B', 9)
+            pdf.set_xy(105, start_y)
+            pdf.cell(30, 6, lbl2, 0, 0, 'L')
+            pdf.set_font('Arial', '', 9)
+            pdf.set_xy(135, start_y)
+            pdf.multi_cell(65, 6, f": {val2}", 0, 'L')
+            y_right = pdf.get_y()
+        
+        max_y = max(y_left, y_right, start_y + 6)
+        pdf.line(10, start_y, 10, max_y)
+        pdf.line(200, start_y, 200, max_y)
+        if is_last:
+            pdf.line(10, max_y, 200, max_y)
+            
+        pdf.set_xy(10, max_y)
 
-    pdf.set_font('Arial', 'B', 10); pdf.cell(0, 6, "IDENTIFICACIÓN DEL MÓVIL", 0, 1)
-    pdf.set_font('Arial', '', 9)
-    pdf.cell(20, 6, "PATENTE:",0,0); pdf.cell(40, 6, patente,0,0)
-    pdf.cell(20, 6, "MODELO:",0,0); pdf.cell(40, 6, modelo, 0, 0)
-    pdf.cell(20, 6, "ESTADO:",0,0); pdf.set_font('Arial', '', 9); pdf.cell(0, 6, estado_trabajo, 0, 1)
-    pdf.ln(8)
+    # --- 1. TABLA DATOS DEL CLIENTE ---
+    pdf.set_y(60) 
+    pdf.set_font('Arial', 'B', 10); pdf.set_fill_color(230, 230, 230)
+    pdf.cell(190, 6, "  DATOS DEL CLIENTE", 1, 1, 'L', 1)
     
-    pdf.set_font('Arial', 'B', 9); pdf.set_fill_color(30, 45, 80); pdf.set_text_color(255,255,255)
-    pdf.cell(100, 8, "Descripción", 1, 0, 'L', 1)
-    pdf.cell(15, 8, "Cant.", 1, 0, 'C', 1)
-    pdf.cell(35, 8, "Unitario", 1, 0, 'R', 1)
-    pdf.cell(35, 8, "Total", 1, 1, 'R', 1)
-    pdf.ln()
-    pdf.set_text_color(0,0,0); pdf.set_font('Arial', '', 9)
+    nom = "KAUFMANN S.A." if not is_official else cliente_nombre
+    rut = "92.475.000-6" if not is_official else ""
+    us_final = usuario_final_txt if not is_official else ""
+    
+    fila_dinamica(" Señor(es)", str(nom).upper(), " Fecha Emisión", datetime.now().strftime('%d/%m/%Y'))
+    
+    if not is_official:
+        fila_dinamica(" RUT", rut, " Usuario Final", str(us_final).upper(), is_last=True)
+    else:
+        if rut: fila_dinamica(" RUT", rut, "", "", is_last=True) 
+        else: fila_dinamica(" ", "", "", "", is_last=True)
+    
+    pdf.ln(4)
+    
+    # --- 2. TABLA DATOS DEL VEHÍCULO ---
+    pdf.set_font('Arial', 'B', 10); pdf.set_fill_color(230, 230, 230)
+    pdf.cell(190, 6, "  DATOS DEL VEHÍCULO", 1, 1, 'L', 1)
+    
+    fila_dinamica(" Marca / Modelo", f"MERCEDES-BENZ {str(modelo).upper()}", " Patente", str(patente).upper())
+    fila_dinamica(" Estado", str(estado_trabajo).upper(), "", "", is_last=True)
 
+    pdf.ln(6)
+
+    # --- 3. TABLA DETALLE DE COTIZACIÓN ---
+    pdf.set_font('Arial', 'B', 9); pdf.set_fill_color(230, 230, 230)
+    pdf.cell(115, 7, "Descripción", 1, 0, 'C', 1)
+    pdf.cell(15, 7, "Cant.", 1, 0, 'C', 1)
+    pdf.cell(30, 7, "Unitario", 1, 0, 'C', 1)
+    pdf.cell(30, 7, "Total", 1, 1, 'C', 1)
+    
+    pdf.set_font('Arial', '', 9)
     for item in items:
         unit = item['Unitario_Costo']
         tot = item['Total_Costo']
         x = pdf.get_x(); y = pdf.get_y()
-        pdf.multi_cell(100, 6, item['Descripción'], 1, 'L')
+        pdf.multi_cell(115, 6, item['Descripción'].upper(), 1, 'L')
         h = pdf.get_y() - y
-        pdf.set_xy(x+100, y)
+        pdf.set_xy(x+115, y)
         pdf.cell(15, h, str(item['Cantidad']), 1, 0, 'C')
-        pdf.cell(35, h, format_clp(unit), 1, 0, 'R')
-        pdf.cell(35, h, format_clp(tot), 1, 0, 'R')
+        pdf.cell(30, h, format_clp(unit), 1, 0, 'R')
+        pdf.cell(30, h, format_clp(tot), 1, 1, 'R')
         pdf.set_xy(x, y + h)
 
     pdf.ln(5)
     iva = total_neto * 0.19; bruto = total_neto + iva
-    pdf.set_x(125); pdf.cell(35, 6, "Neto:", 0, 0, 'R'); pdf.cell(35, 6, format_clp(total_neto), 1, 1, 'R'); pdf.ln()
-    pdf.set_x(125); pdf.cell(35, 6, "IVA (19%):", 0, 0, 'R'); pdf.cell(35, 6, format_clp(iva), 1, 1, 'R'); pdf.ln()
-    pdf.set_font('Arial', 'B', 10); pdf.set_x(125); pdf.set_text_color(20, 20, 60)
-    pdf.cell(35, 8, "TOTAL:", 0, 0, 'R'); pdf.cell(35, 8, format_clp(bruto), 1, 1, 'R')
-    pdf.set_text_color(0,0,0)
+    
+    # --- CUADRO DE TOTALES (Estilo Pascual) ---
+    pdf.set_x(130)
+    pdf.set_font('Arial', 'B', 9)
+    pdf.cell(35, 6, "SUB TOTAL", 1, 0, 'L'); pdf.set_font('Arial', '', 9); pdf.cell(25, 6, format_clp(total_neto), 1, 1, 'R')
+    
+    pdf.set_x(130)
+    pdf.set_font('Arial', 'B', 9); pdf.cell(35, 6, "I.V.A. (19%)", 1, 0, 'L'); pdf.set_font('Arial', '', 9); pdf.cell(25, 6, format_clp(iva), 1, 1, 'R')
+    
+    pdf.set_x(130)
+    pdf.set_font('Arial', 'B', 10); pdf.set_fill_color(230, 230, 230)
+    pdf.cell(35, 8, "TOTAL", 1, 0, 'L', 1); pdf.cell(25, 8, format_clp(bruto), 1, 1, 'R', 1)
 
     if observaciones:
         pdf.ln(8); pdf.set_font('Arial', 'B', 9); pdf.cell(0, 6, "OBSERVACIONES / NOTAS:", 0, 1)
@@ -431,14 +490,12 @@ with st.sidebar:
         is_admin = (password == "kaufmann")
         if is_admin: st.success("Acceso Concedido")
 
-# === GESTIÓN DE BORRADOR INICIAL ===
 if 'check_borrador' not in st.session_state:
     st.session_state.check_borrador = True
     borrador_recuperado = cargar_borrador_nube()
     if borrador_recuperado and 'patente_confirmada' in borrador_recuperado:
         st.session_state.borrador_pendiente = borrador_recuperado
 
-# === GESTIÓN DE PASOS ===
 if 'paso_actual' not in st.session_state:
     params = st.query_params
     if "patente" in params and "paso" in params:
@@ -455,7 +512,6 @@ if st.session_state.paso_actual == 1:
     col_centro = st.columns([1, 2, 1])
     with col_centro[1]:
         
-        # --- ALERTA DE RECUPERACIÓN DE BORRADOR ---
         if 'borrador_pendiente' in st.session_state:
             st.error(f"⚠️ ¡ATENCIÓN! Tienes un presupuesto en pausa para la patente **{st.session_state.borrador_pendiente.get('patente_confirmada', '')}**.")
             ca, cb = st.columns(2)
@@ -515,7 +571,7 @@ if st.session_state.paso_actual == 1:
                 else: st.session_state.usuario_final_confirmado = "HOSPITAL [ESPECIFICAR]"
                 
                 st.session_state.paso_actual = 2
-                guardar_borrador_nube() # Guardamos inicio del borrador
+                guardar_borrador_nube() 
                 st.rerun()
 
 # --- PASO 2: COTIZADOR COMPLETO ---
@@ -556,7 +612,7 @@ elif st.session_state.paso_actual == 2:
                 if st.button("Agregar Ítem"):
                     if d_m and q_m > 0 and p_m > 0:
                         st.session_state.lista_particular.append({"Descripción": d_m, "Cantidad": q_m, "Unitario_Costo": p_m, "Total_Costo": p_m*q_m})
-                        guardar_borrador_nube() # Guardado por ingreso manual
+                        guardar_borrador_nube() 
                         st.success("Agregado")
                 if st.session_state.lista_particular:
                     st.markdown("#### Ítems Agregados:")
@@ -586,7 +642,6 @@ elif st.session_state.paso_actual == 2:
                             key_input = f"q_{row['Trabajo']}_{index}"
                             val = st.session_state.get(key_input, 0)
                             
-                            # on_change dispara el autoguardado en la nube cada vez que se suma o resta un ítem
                             qty = c2.number_input("", 0, 20, value=val, key=key_input, label_visibility="collapsed", on_change=guardar_borrador_nube)
                             
                             precio_costo = float(row[col_c_db])
@@ -613,7 +668,7 @@ elif st.session_state.paso_actual == 2:
                 if st.button("Agregar Ítem Manual"):
                     if d_m and p_m > 0:
                         st.session_state.items_manuales_extra.append({"Descripción": f"(Extra) {d_m}", "Cantidad": q_m, "Unitario_Costo": p_m, "Total_Costo": p_m * q_m})
-                        guardar_borrador_nube() # Guardado en la nube al ingresar manual
+                        guardar_borrador_nube() 
                         st.success(f"Agregado: {d_m}")
                 if st.session_state.items_manuales_extra:
                     st.markdown("---"); st.markdown("###### Ítems Manuales:")
@@ -647,7 +702,7 @@ elif st.session_state.paso_actual == 2:
                 else: pdf_bytes = generar_pdf_exacto(patente_input, "SPRINTER", "Kaufmann S.A.", seleccion_final, total_costo, False, watermark_file, estado_trabajo, usuario_final_txt, observaciones_txt, correlativo, fotos_adjuntas)
                 
                 st.session_state['presupuesto_generado'] = {'pdf': pdf_bytes, 'nombre': f"Presupuesto {correlativo} - {patente_input}.pdf"}
-                limpiar_borrador_nube() # Cotización exitosa = borrador limpio
+                limpiar_borrador_nube() 
                 st.rerun()
         else:
             data = st.session_state['presupuesto_generado']
