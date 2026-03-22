@@ -33,7 +33,7 @@ def conectar_google_sheets():
     except: return None
 
 # ==========================================
-# 2. LÓGICA DE CORRELATIVOS
+# 2. LÓGICA DE CORRELATIVOS Y BORRADOR
 # ==========================================
 def obtener_y_registrar_correlativo(patente, cliente, total):
     client = conectar_google_sheets()
@@ -53,6 +53,40 @@ def obtener_y_registrar_correlativo(patente, cliente, total):
             return correlativo_str
         except: return "ERR-NUBE"
     else: return "OFFLINE"
+
+def guardar_borrador_nube():
+    client = conectar_google_sheets()
+    if not client: return
+    try:
+        sheet = client.open(NOMBRE_HOJA_GOOGLE)
+        try: ws = sheet.worksheet("Borrador")
+        except: ws = sheet.add_worksheet(title="Borrador", rows="2", cols="2")
+        
+        # Filtramos qué guardar: confirmaciones de paso 1, el paso actual, listas manuales y las cantidades (q_)
+        keys_to_save = ['paso_actual', 'lista_particular', 'items_manuales_extra']
+        datos = {k: v for k, v in st.session_state.items() if k.endswith('_confirmado') or k.endswith('_confirmada') or k in keys_to_save or k.startswith('q_')}
+        ws.update_acell('A1', json.dumps(datos))
+    except Exception: pass
+
+def cargar_borrador_nube():
+    client = conectar_google_sheets()
+    if not client: return None
+    try:
+        sheet = client.open(NOMBRE_HOJA_GOOGLE)
+        ws = sheet.worksheet("Borrador")
+        val = ws.acell('A1').value
+        if val: return json.loads(val)
+    except Exception: pass
+    return None
+
+def limpiar_borrador_nube():
+    client = conectar_google_sheets()
+    if not client: return
+    try:
+        sheet = client.open(NOMBRE_HOJA_GOOGLE)
+        ws = sheet.worksheet("Borrador")
+        ws.update_acell('A1', '')
+    except Exception: pass
 
 # ==========================================
 # 3. BASE DE DATOS INTELIGENTE
@@ -75,7 +109,6 @@ def detectar_cliente_automatico(patente_input):
         return hospital, tipo
     return None, None
 
-# DATOS MAESTROS LIMPIOS (Solo con Costos)
 DATOS_MAESTROS = """Categoria,Trabajo,Costo_SSAS,Costo_Hosp,Costo_Gend
 Cabina y Tablero,Reparación circuito eléctrico tablero,180000,189000,215800
 Equipamiento y Radio,Cambiar sirena y parlante con accesorios,893700,600000,895670
@@ -146,8 +179,6 @@ def cargar_datos():
                 return df_init
             
             df = pd.DataFrame(data)
-            
-            # --- AUTO-REPARADOR DE BASE DE DATOS ---
             if 'Venta_SSAS' in df.columns:
                 df = df.drop(columns=['Venta_SSAS', 'Venta_Hosp', 'Venta_Gend'], errors='ignore')
                 sheet.clear()
@@ -162,7 +193,6 @@ def guardar_nuevo_item(categoria, nombre, costo):
     if client:
         try:
             sheet = client.open(NOMBRE_HOJA_GOOGLE).sheet1
-            # Se guarda exclusivamente el costo puro
             costo_ssas = costo
             costo_hosp = costo * 1.05
             costo_gend = costo
@@ -172,7 +202,7 @@ def guardar_nuevo_item(categoria, nombre, costo):
     return False
 
 # ==========================================
-# 5. UTILS Y ESTILOS (CLÍNICA + DARK MODE FIX)
+# 5. UTILS Y ESTILOS
 # ==========================================
 EMPRESA_NOMBRE = "C.H. SERVICIO AUTOMOTRIZ"
 RUT_EMPRESA = "13.961.700-2" 
@@ -180,14 +210,15 @@ DIRECCION = "Francisco Pizarro 495, Padre las Casas, Región de la Araucanía"
 TELEFONO = "+56 9 8922 0616"
 EMAIL = "c.h.servicioautomotriz@gmail.com"
 
-COLOR_PRIMARIO = "#0A2540" # Azul Marino Institucional
-COLOR_SECUNDARIO = "#00A4E4" # Celeste Médico
+COLOR_PRIMARIO = "#0A2540" 
+COLOR_SECUNDARIO = "#00A4E4" 
 
 def format_clp(value):
     try: return f"${float(value):,.0f}".replace(",", ".")
     except: return "$0"
 
 def reset_session():
+    limpiar_borrador_nube() # Limpiamos el borrador al reiniciar
     st.query_params.clear()
     for key in list(st.session_state.keys()):
         del st.session_state[key]
@@ -207,12 +238,8 @@ st.markdown(f"""
     div[data-testid="stNumberInput"] input {{ max-width: 100px; text-align: center; }}
     input[type=number]::-webkit-inner-spin-button {{ -webkit-appearance: none; margin: 0; }}
     .big-font {{ font-size:20px !important; font-weight: bold; }}
-    
-    /* Botones Clínicos */
     .stButton > button[kind="primary"] {{ background-color: {COLOR_PRIMARIO} !important; border-color: {COLOR_PRIMARIO} !important; color: white !important; font-weight: bold; }}
     .stButton > button[kind="primary"]:hover {{ background-color: {COLOR_SECUNDARIO} !important; border-color: {COLOR_SECUNDARIO} !important; }}
-    
-    /* Hack para ocultar teclado en celulares al usar Selectbox */
     div[data-baseweb="select"] input {{ pointer-events: none !important; }}
 </style>
 """, unsafe_allow_html=True)
@@ -220,7 +247,7 @@ st.markdown(f"""
 df_precios = cargar_datos()
 
 # ==========================================
-# 6. CALCULADORA (ACTUALIZADA A CLÍNICA)
+# 6. CALCULADORA Y PDF 
 # ==========================================
 @st.dialog("🧮 Calculadora Rápida")
 def abrir_calculadora():
@@ -251,9 +278,6 @@ def abrir_calculadora():
     </script></body></html>"""
     components.html(calc_html, height=280)
 
-# ==========================================
-# 7. PDF
-# ==========================================
 class PDF(FPDF):
     def __init__(self, logo_header=None, correlativo=""):
         super().__init__()
@@ -320,10 +344,8 @@ def generar_pdf_exacto(patente, modelo, cliente_nombre, items, total_neto, is_of
     pdf.set_text_color(0,0,0); pdf.set_font('Arial', '', 9)
 
     for item in items:
-        # Ahora unit y tot siempre usan el valor real de Costo, sin importar is_official
         unit = item['Unitario_Costo']
         tot = item['Total_Costo']
-        
         x = pdf.get_x(); y = pdf.get_y()
         pdf.multi_cell(100, 6, item['Descripción'], 1, 'L')
         h = pdf.get_y() - y
@@ -354,7 +376,6 @@ def generar_pdf_exacto(patente, modelo, cliente_nombre, items, total_neto, is_of
     firmante = "KAUFMANN S.A." if is_official else EMPRESA_NOMBRE
     pdf.ln(5); pdf.cell(0, 5, firmante, 0, 1, 'C')
 
-    # --- PÁGINA DE FOTOS CON GRILLA 2x2 ---
     if fotos_adjuntas:
         pdf.add_page()
         pdf.set_font('Arial', 'B', 14); pdf.set_text_color(20, 20, 60)
@@ -410,6 +431,13 @@ with st.sidebar:
         is_admin = (password == "kaufmann")
         if is_admin: st.success("Acceso Concedido")
 
+# === GESTIÓN DE BORRADOR INICIAL ===
+if 'check_borrador' not in st.session_state:
+    st.session_state.check_borrador = True
+    borrador_recuperado = cargar_borrador_nube()
+    if borrador_recuperado and 'patente_confirmada' in borrador_recuperado:
+        st.session_state.borrador_pendiente = borrador_recuperado
+
 # === GESTIÓN DE PASOS ===
 if 'paso_actual' not in st.session_state:
     params = st.query_params
@@ -426,6 +454,18 @@ if 'paso_actual' not in st.session_state:
 if st.session_state.paso_actual == 1:
     col_centro = st.columns([1, 2, 1])
     with col_centro[1]:
+        
+        # --- ALERTA DE RECUPERACIÓN DE BORRADOR ---
+        if 'borrador_pendiente' in st.session_state:
+            st.error(f"⚠️ ¡ATENCIÓN! Tienes un presupuesto en pausa para la patente **{st.session_state.borrador_pendiente.get('patente_confirmada', '')}**.")
+            ca, cb = st.columns(2)
+            if ca.button("✅ Recuperar Trabajo", use_container_width=True):
+                for k, v in st.session_state.borrador_pendiente.items(): st.session_state[k] = v
+                del st.session_state['borrador_pendiente']; st.rerun()
+            if cb.button("🗑️ Descartar", use_container_width=True):
+                limpiar_borrador_nube(); del st.session_state['borrador_pendiente']; st.rerun()
+            st.markdown("---")
+
         logo_main = encontrar_imagen("logo")
         if logo_main: st.image(logo_main, width=200)
         st.title("Cotizador Taller")
@@ -475,6 +515,7 @@ if st.session_state.paso_actual == 1:
                 else: st.session_state.usuario_final_confirmado = "HOSPITAL [ESPECIFICAR]"
                 
                 st.session_state.paso_actual = 2
+                guardar_borrador_nube() # Guardamos inicio del borrador
                 st.rerun()
 
 # --- PASO 2: COTIZADOR COMPLETO ---
@@ -515,12 +556,16 @@ elif st.session_state.paso_actual == 2:
                 if st.button("Agregar Ítem"):
                     if d_m and q_m > 0 and p_m > 0:
                         st.session_state.lista_particular.append({"Descripción": d_m, "Cantidad": q_m, "Unitario_Costo": p_m, "Total_Costo": p_m*q_m})
+                        guardar_borrador_nube() # Guardado por ingreso manual
                         st.success("Agregado")
                 if st.session_state.lista_particular:
                     st.markdown("#### Ítems Agregados:")
                     df_part = pd.DataFrame(st.session_state.lista_particular)
                     st.table(df_part[["Descripción", "Cantidad", "Unitario_Costo", "Total_Costo"]])
-                    if st.button("Limpiar Lista"): st.session_state.lista_particular = []; st.rerun()
+                    if st.button("Limpiar Lista"): 
+                        st.session_state.lista_particular = []
+                        guardar_borrador_nube()
+                        st.rerun()
                     seleccion_final = st.session_state.lista_particular
     else:
         tabs = st.tabs([f"{emojis.get(c, '🔧')} {c}" for c in categorias_a_mostrar] + ["➕ Manual (Temp)"])
@@ -540,7 +585,9 @@ elif st.session_state.paso_actual == 2:
                             with c1: st.markdown(f"**{row['Trabajo']}**")
                             key_input = f"q_{row['Trabajo']}_{index}"
                             val = st.session_state.get(key_input, 0)
-                            qty = c2.number_input("", 0, 20, value=val, key=key_input, label_visibility="collapsed")
+                            
+                            # on_change dispara el autoguardado en la nube cada vez que se suma o resta un ítem
+                            qty = c2.number_input("", 0, 20, value=val, key=key_input, label_visibility="collapsed", on_change=guardar_borrador_nube)
                             
                             precio_costo = float(row[col_c_db])
                             
@@ -566,11 +613,15 @@ elif st.session_state.paso_actual == 2:
                 if st.button("Agregar Ítem Manual"):
                     if d_m and p_m > 0:
                         st.session_state.items_manuales_extra.append({"Descripción": f"(Extra) {d_m}", "Cantidad": q_m, "Unitario_Costo": p_m, "Total_Costo": p_m * q_m})
+                        guardar_borrador_nube() # Guardado en la nube al ingresar manual
                         st.success(f"Agregado: {d_m}")
                 if st.session_state.items_manuales_extra:
                     st.markdown("---"); st.markdown("###### Ítems Manuales:")
                     for item in st.session_state.items_manuales_extra: st.text(f"• {item['Cantidad']}x {item['Descripción']}")
-                    if st.button("Limpiar Manuales"): st.session_state.items_manuales_extra = []; st.rerun()
+                    if st.button("Limpiar Manuales"): 
+                        st.session_state.items_manuales_extra = []
+                        guardar_borrador_nube()
+                        st.rerun()
                     seleccion_final.extend(st.session_state.items_manuales_extra)
 
     if seleccion_final:
@@ -592,11 +643,11 @@ elif st.session_state.paso_actual == 2:
             if st.button("💾 FINALIZAR Y GENERAR PRESUPUESTO", type="primary", use_container_width=True):
                 correlativo = obtener_y_registrar_correlativo(patente_input, usuario_final_txt, format_clp(total_final))
                 
-                # Se utiliza total_costo en todos los casos para asegurar limpieza
                 if is_admin: pdf_bytes = generar_pdf_exacto(patente_input, "SPRINTER", usuario_final_txt, seleccion_final, total_costo, True, watermark_file, estado_trabajo, usuario_final_txt, observaciones_txt, correlativo, fotos_adjuntas)
                 else: pdf_bytes = generar_pdf_exacto(patente_input, "SPRINTER", "Kaufmann S.A.", seleccion_final, total_costo, False, watermark_file, estado_trabajo, usuario_final_txt, observaciones_txt, correlativo, fotos_adjuntas)
                 
                 st.session_state['presupuesto_generado'] = {'pdf': pdf_bytes, 'nombre': f"Presupuesto {correlativo} - {patente_input}.pdf"}
+                limpiar_borrador_nube() # Cotización exitosa = borrador limpio
                 st.rerun()
         else:
             data = st.session_state['presupuesto_generado']
