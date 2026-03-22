@@ -10,7 +10,7 @@ import time
 import gspread
 import re
 from oauth2client.service_account import ServiceAccountCredentials
-from PIL import Image, ImageOps # <--- IMPORTANTE: Agregamos ImageOps
+from PIL import Image, ImageOps
 
 # ==========================================
 # 1. CONFIGURACIÓN Y CONEXIÓN
@@ -159,7 +159,7 @@ def guardar_nuevo_item(categoria, nombre, costo):
     return False
 
 # ==========================================
-# 5. UTILS Y ESTILOS (AQUÍ ESTÁ LA MAGIA CLÍNICA)
+# 5. UTILS Y ESTILOS (CLÍNICA + DARK MODE FIX)
 # ==========================================
 EMPRESA_NOMBRE = "C.H. SERVICIO AUTOMOTRIZ"
 RUT_EMPRESA = "13.961.700-2" 
@@ -187,11 +187,10 @@ def encontrar_imagen(nombre_base):
         if os.path.exists(nombre_base.capitalize() + ext): return nombre_base.capitalize() + ext
     return None
 
+# CORRECCIÓN DE MODO OSCURO Y HACK TECLADO
 st.markdown(f"""
 <style>
-    .stApp {{ background-color: #f8f9fa; }}
     .stTabs [aria-selected="true"] {{ background-color: {COLOR_PRIMARIO} !important; color: white !important; }}
-    .stTabs [data-baseweb="tab"] {{ background-color: #f0f2f6; color: {COLOR_PRIMARIO}; font-weight: bold; }}
     .stContainer {{ border: 1px solid rgba(128, 128, 128, 0.2); border-radius: 8px; padding: 10px; margin-bottom: 5px; }}
     div[data-testid="stNumberInput"] input {{ max-width: 100px; text-align: center; }}
     input[type=number]::-webkit-inner-spin-button {{ -webkit-appearance: none; margin: 0; }}
@@ -201,7 +200,8 @@ st.markdown(f"""
     .stButton > button[kind="primary"] {{ background-color: {COLOR_PRIMARIO} !important; border-color: {COLOR_PRIMARIO} !important; color: white !important; font-weight: bold; }}
     .stButton > button[kind="primary"]:hover {{ background-color: {COLOR_SECUNDARIO} !important; border-color: {COLOR_SECUNDARIO} !important; }}
     
-    h1, h2, h3, h4 {{ color: {COLOR_PRIMARIO} !important; }}
+    /* Hack para ocultar teclado en celulares al usar Selectbox */
+    div[data-baseweb="select"] input {{ pointer-events: none !important; }}
 </style>
 """, unsafe_allow_html=True)
 
@@ -347,7 +347,7 @@ def generar_pdf_exacto(patente, modelo, cliente_nombre, items, total_neto, is_of
         pdf.cell(0, 10, "REGISTRO FOTOGRÁFICO", 0, 1, 'C')
         pdf.ln(5)
         
-        margin_x = 15; margin_y = 60 # Margen superior aumentado para que no tape el título
+        margin_x = 15; margin_y = 60
         w_photo = 85; h_photo = 85
         col_gap = 10; row_gap = 10
         
@@ -363,7 +363,7 @@ def generar_pdf_exacto(patente, modelo, cliente_nombre, items, total_neto, is_of
             
             try:
                 img = Image.open(foto_uploaded)
-                img = ImageOps.exif_transpose(img) # CORRECCIÓN DE ROTACIÓN
+                img = ImageOps.exif_transpose(img) 
                 img = img.convert('RGB')
                 
                 img.thumbnail((600, 600))
@@ -472,7 +472,7 @@ elif st.session_state.paso_actual == 2:
     c1, c2, c3 = st.columns([1, 4, 1])
     with c1: 
         if st.button("⬅️ Volver"): 
-            st.query_params.clear() # Limpiar URL al volver
+            st.query_params.clear() 
             st.session_state.paso_actual = 1
             st.rerun()
     with c2: st.markdown(f"### 🚗 Cotizando: **{patente_input}** ({tipo_cliente})")
