@@ -33,7 +33,7 @@ def conectar_google_sheets():
     except: return None
 
 # ==========================================
-# 2. LÓGICA DE CORRELATIVOS
+# 2. LÓGICA DE CORRELATIVOS Y BORRADOR
 # ==========================================
 def obtener_y_registrar_correlativo(patente, cliente, total):
     client = conectar_google_sheets()
@@ -47,12 +47,47 @@ def obtener_y_registrar_correlativo(patente, cliente, total):
             
             datos = worksheet_hist.get_all_values()
             numero_actual = len(datos) 
-            correlativo_str = str(numero_actual).zfill(6)
+            # SE ELIMINÓ EL RELLENO DE CEROS (zfill). AHORA MOSTRARÁ N° 63 EN VEZ DE 000063
+            correlativo_str = str(numero_actual)
+            
             ahora = datetime.now()
             worksheet_hist.append_row([ahora.strftime("%d/%m/%Y"), ahora.strftime("%H:%M:%S"), correlativo_str, patente, cliente, total])
             return correlativo_str
         except: return "ERR-NUBE"
     else: return "OFFLINE"
+
+def guardar_borrador_nube():
+    client = conectar_google_sheets()
+    if not client: return
+    try:
+        sheet = client.open(NOMBRE_HOJA_GOOGLE)
+        try: ws = sheet.worksheet("Borrador")
+        except: ws = sheet.add_worksheet(title="Borrador", rows="2", cols="2")
+        
+        keys_to_save = ['paso_actual', 'lista_particular', 'items_manuales_extra']
+        datos = {k: v for k, v in st.session_state.items() if k.endswith('_confirmado') or k.endswith('_confirmada') or k in keys_to_save or k.startswith('q_')}
+        ws.update_acell('A1', json.dumps(datos))
+    except Exception: pass
+
+def cargar_borrador_nube():
+    client = conectar_google_sheets()
+    if not client: return None
+    try:
+        sheet = client.open(NOMBRE_HOJA_GOOGLE)
+        ws = sheet.worksheet("Borrador")
+        val = ws.acell('A1').value
+        if val: return json.loads(val)
+    except Exception: pass
+    return None
+
+def limpiar_borrador_nube():
+    client = conectar_google_sheets()
+    if not client: return
+    try:
+        sheet = client.open(NOMBRE_HOJA_GOOGLE)
+        ws = sheet.worksheet("Borrador")
+        ws.update_acell('A1', '')
+    except Exception: pass
 
 # ==========================================
 # 3. BASE DE DATOS INTELIGENTE
@@ -167,39 +202,6 @@ def guardar_nuevo_item(categoria, nombre, costo):
         except: return False
     return False
 
-def guardar_borrador_nube():
-    client = conectar_google_sheets()
-    if not client: return
-    try:
-        sheet = client.open(NOMBRE_HOJA_GOOGLE)
-        try: ws = sheet.worksheet("Borrador")
-        except: ws = sheet.add_worksheet(title="Borrador", rows="2", cols="2")
-        
-        keys_to_save = ['paso_actual', 'lista_particular', 'items_manuales_extra']
-        datos = {k: v for k, v in st.session_state.items() if k.endswith('_confirmado') or k.endswith('_confirmada') or k in keys_to_save or k.startswith('q_')}
-        ws.update_acell('A1', json.dumps(datos))
-    except Exception: pass
-
-def cargar_borrador_nube():
-    client = conectar_google_sheets()
-    if not client: return None
-    try:
-        sheet = client.open(NOMBRE_HOJA_GOOGLE)
-        ws = sheet.worksheet("Borrador")
-        val = ws.acell('A1').value
-        if val: return json.loads(val)
-    except Exception: pass
-    return None
-
-def limpiar_borrador_nube():
-    client = conectar_google_sheets()
-    if not client: return
-    try:
-        sheet = client.open(NOMBRE_HOJA_GOOGLE)
-        ws = sheet.worksheet("Borrador")
-        ws.update_acell('A1', '')
-    except Exception: pass
-
 # ==========================================
 # 5. UTILS Y ESTILOS
 # ==========================================
@@ -286,6 +288,7 @@ class PDF(FPDF):
     def header(self):
         if self.logo_header and os.path.exists(self.logo_header):
             self.image(self.logo_header, x=10, y=8, w=30)
+        
         self.set_xy(45, 10); self.set_font('Arial', 'B', 16)
         empresa = "KAUFMANN S.A." if self.is_official else EMPRESA_NOMBRE
         self.cell(0, 10, empresa, 0, 1, 'L')
@@ -296,7 +299,7 @@ class PDF(FPDF):
         else:
             self.cell(0, 5, "Repuestos y Servicio Técnico Mercedes-Benz", 0, 1, 'L')
         
-        # --- Formato de Cabecera Oficial (Estilo Pascual) ---
+        # --- CABECERA OFICIAL ROJA (Estilo Pascual) ---
         self.set_xy(130, 10)
         self.set_text_color(220, 0, 0) 
         self.set_draw_color(220, 0, 0)
@@ -317,7 +320,7 @@ class PDF(FPDF):
         self.ln(15)
 
     def footer(self):
-        self.set_y(-30); self.set_font('Arial', 'I', 8); self.line(10, 265, 200, 265)
+        self.set_y(-20); self.set_font('Arial', 'I', 8); self.line(10, 277, 200, 277)
         if not self.is_official:
             legal = "Validez oferta: 15 días. Garantía: 3 meses."
             self.multi_cell(0, 5, legal, 0, 'C')
@@ -329,7 +332,7 @@ def generar_pdf_exacto(patente, modelo, cliente_nombre, items, total_neto, is_of
     pdf.is_official = is_official 
     pdf.add_page(); pdf.set_auto_page_break(auto=True, margin=30) 
     
-    # --- MOTOR DE FILAS DINÁMICAS (TABLAS PERFECTAS) ---
+    # --- MOTOR DE FILAS DINÁMICAS ---
     def fila_dinamica(lbl1, val1, lbl2, val2, is_last=False):
         start_y = pdf.get_y()
         
@@ -360,9 +363,12 @@ def generar_pdf_exacto(patente, modelo, cliente_nombre, items, total_neto, is_of
         pdf.set_xy(10, max_y)
 
     # --- 1. TABLA DATOS DEL CLIENTE ---
-    pdf.set_y(60) 
-    pdf.set_font('Arial', 'B', 10); pdf.set_fill_color(230, 230, 230)
+    pdf.set_y(55) 
+    pdf.set_font('Arial', 'B', 10)
+    pdf.set_fill_color(10, 37, 64) # Azul Marino (Color Primario)
+    pdf.set_text_color(255, 255, 255) # Texto Blanco
     pdf.cell(190, 6, "  DATOS DEL CLIENTE", 1, 1, 'L', 1)
+    pdf.set_text_color(0, 0, 0) # Reseteo a negro
     
     nom = "KAUFMANN S.A." if not is_official else cliente_nombre
     rut = "92.475.000-6" if not is_official else ""
@@ -379,8 +385,11 @@ def generar_pdf_exacto(patente, modelo, cliente_nombre, items, total_neto, is_of
     pdf.ln(4)
     
     # --- 2. TABLA DATOS DEL VEHÍCULO ---
-    pdf.set_font('Arial', 'B', 10); pdf.set_fill_color(230, 230, 230)
+    pdf.set_font('Arial', 'B', 10)
+    pdf.set_fill_color(10, 37, 64) # Azul Marino
+    pdf.set_text_color(255, 255, 255)
     pdf.cell(190, 6, "  DATOS DEL VEHÍCULO", 1, 1, 'L', 1)
+    pdf.set_text_color(0, 0, 0)
     
     fila_dinamica(" Marca / Modelo", f"MERCEDES-BENZ {str(modelo).upper()}", " Patente", str(patente).upper())
     fila_dinamica(" Estado", str(estado_trabajo).upper(), "", "", is_last=True)
@@ -388,11 +397,14 @@ def generar_pdf_exacto(patente, modelo, cliente_nombre, items, total_neto, is_of
     pdf.ln(6)
 
     # --- 3. TABLA DETALLE DE COTIZACIÓN ---
-    pdf.set_font('Arial', 'B', 9); pdf.set_fill_color(230, 230, 230)
+    pdf.set_font('Arial', 'B', 9)
+    pdf.set_fill_color(0, 164, 228) # Celeste Médico (Color Secundario)
+    pdf.set_text_color(255, 255, 255)
     pdf.cell(115, 7, "Descripción", 1, 0, 'C', 1)
     pdf.cell(15, 7, "Cant.", 1, 0, 'C', 1)
     pdf.cell(30, 7, "Unitario", 1, 0, 'C', 1)
     pdf.cell(30, 7, "Total", 1, 1, 'C', 1)
+    pdf.set_text_color(0, 0, 0)
     
     pdf.set_font('Arial', '', 9)
     for item in items:
@@ -410,30 +422,40 @@ def generar_pdf_exacto(patente, modelo, cliente_nombre, items, total_neto, is_of
     pdf.ln(5)
     iva = total_neto * 0.19; bruto = total_neto + iva
     
-    # --- CUADRO DE TOTALES (Estilo Pascual) ---
-    pdf.set_x(130)
+    # --- CUADRO DE TOTALES ALINEADO A LA DERECHA ---
+    pdf.set_x(140)
     pdf.set_font('Arial', 'B', 9)
-    pdf.cell(35, 6, "SUB TOTAL", 1, 0, 'L'); pdf.set_font('Arial', '', 9); pdf.cell(25, 6, format_clp(total_neto), 1, 1, 'R')
+    pdf.cell(30, 6, "SUB TOTAL", 1, 0, 'L'); pdf.set_font('Arial', '', 9); pdf.cell(30, 6, format_clp(total_neto), 1, 1, 'R')
     
-    pdf.set_x(130)
-    pdf.set_font('Arial', 'B', 9); pdf.cell(35, 6, "I.V.A. (19%)", 1, 0, 'L'); pdf.set_font('Arial', '', 9); pdf.cell(25, 6, format_clp(iva), 1, 1, 'R')
+    pdf.set_x(140)
+    pdf.set_font('Arial', 'B', 9); pdf.cell(30, 6, "I.V.A. (19%)", 1, 0, 'L'); pdf.set_font('Arial', '', 9); pdf.cell(30, 6, format_clp(iva), 1, 1, 'R')
     
-    pdf.set_x(130)
-    pdf.set_font('Arial', 'B', 10); pdf.set_fill_color(230, 230, 230)
-    pdf.cell(35, 8, "TOTAL", 1, 0, 'L', 1); pdf.cell(25, 8, format_clp(bruto), 1, 1, 'R', 1)
+    pdf.set_x(140)
+    pdf.set_font('Arial', 'B', 10)
+    pdf.set_fill_color(10, 37, 64) # Celda Final Azul Marino
+    pdf.set_text_color(255, 255, 255)
+    pdf.cell(30, 8, "TOTAL", 1, 0, 'L', 1); pdf.cell(30, 8, format_clp(bruto), 1, 1, 'R', 1)
+    pdf.set_text_color(0, 0, 0)
 
     if observaciones:
         pdf.ln(8); pdf.set_font('Arial', 'B', 9); pdf.cell(0, 6, "OBSERVACIONES / NOTAS:", 0, 1)
         pdf.set_font('Arial', '', 9); pdf.multi_cell(0, 5, observaciones, 0, 'L')
 
-    pdf.ln(10)
+    # --- ANCLAJE DE FIRMA Y LOGO AL FINAL DE LA PÁGINA ---
+    # Si la página ya está muy llena, creamos una nueva para que la firma no quede cortada
+    if pdf.get_y() > 220:
+        pdf.add_page()
+        
+    pdf.set_y(-60) # Fija la posición a 60mm del borde inferior de la hoja
     logo_footer = encontrar_imagen("logo") 
-    if logo_footer and not is_official: pdf.image(logo_footer, x=75, w=60)
+    if logo_footer and not is_official: 
+        pdf.image(logo_footer, x=75, y=pdf.get_y(), w=60)
     
+    pdf.set_y(-40) # Fija la posición del texto a 40mm del borde inferior
     fecha = datetime.now().strftime('%d-%m-%Y')
-    pdf.ln(5); pdf.cell(0, 6, f"Padre las Casas, {fecha}", 0, 1, 'C')
+    pdf.cell(0, 6, f"Padre las Casas, {fecha}", 0, 1, 'C')
     firmante = "KAUFMANN S.A." if is_official else EMPRESA_NOMBRE
-    pdf.ln(5); pdf.cell(0, 5, firmante, 0, 1, 'C')
+    pdf.cell(0, 5, firmante, 0, 1, 'C')
 
     if fotos_adjuntas:
         pdf.add_page()
