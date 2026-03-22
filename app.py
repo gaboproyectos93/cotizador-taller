@@ -372,16 +372,23 @@ class PDF(FPDF):
         self.correlativo = correlativo
 
     def header(self):
-        if self.logo_header and os.path.exists(self.logo_header):
-            self.image(self.logo_header, x=10, y=8, w=30)
+        logo_path = encontrar_imagen("logo")
+        start_x = 10
         
-        self.set_xy(45, 10); self.set_font('Arial', 'B', 16)
+        if not self.is_official and logo_path and os.path.exists(logo_path):
+            self.image(logo_path, x=10, y=8, w=60)
+            start_x = 75
+        elif self.logo_header and os.path.exists(self.logo_header):
+            self.image(self.logo_header, x=10, y=8, w=30)
+            start_x = 45
+        
+        self.set_xy(start_x, 10); self.set_font('Arial', 'B', 16)
         empresa = "KAUFMANN S.A." if self.is_official else EMPRESA_NOMBRE
         self.cell(0, 10, empresa, 0, 1, 'L')
-        self.set_xy(45, 18); self.set_font('Arial', '', 9)
+        self.set_xy(start_x, 18); self.set_font('Arial', '', 9)
         if not self.is_official:
             self.cell(0, 5, f"RUT: {RUT_EMPRESA} | {TELEFONO}", 0, 1, 'L')
-            self.set_xy(45, 23); self.cell(0, 5, EMAIL, 0, 1, 'L')
+            self.set_xy(start_x, 23); self.cell(0, 5, EMAIL, 0, 1, 'L')
         else:
             self.cell(0, 5, "Repuestos y Servicio Técnico Mercedes-Benz", 0, 1, 'L')
         
@@ -405,12 +412,7 @@ class PDF(FPDF):
         self.ln(15)
 
     def footer(self):
-        self.set_y(-20); self.set_font('Arial', 'I', 8); self.line(10, 277, 200, 277)
-        if not self.is_official:
-            legal = DIRECCION + " | Validez oferta: 15 días. Garantía: 3 meses."
-            self.multi_cell(0, 5, legal, 0, 'C')
-        else:
-            self.cell(0, 5, "Kaufmann S.A. - Líderes en Movilidad", 0, 1, 'C')
+        pass # ELIMINADO PARA CONTROLAR EL FONDO DE FORMA MANUAL EN GENERAR_PDF
 
 def generar_pdf_exacto(patente, marca_modelo, cliente_nombre, cliente_rut, items, total_neto, is_official, watermark_file, estado_trabajo, usuario_final_txt, observaciones, correlativo, fotos_adjuntas):
     pdf = PDF(logo_header=watermark_file, correlativo=correlativo)
@@ -509,25 +511,10 @@ def generar_pdf_exacto(patente, marca_modelo, cliente_nombre, cliente_rut, items
         pdf.ln(10); pdf.set_font('Arial', 'B', 9); pdf.cell(0, 6, "OBSERVACIONES / NOTAS:", 0, 1)
         pdf.set_font('Arial', '', 9); pdf.multi_cell(0, 5, observaciones, 0, 'L')
 
-    if pdf.get_y() > 230:
+    # --- CONTROL MANUAL DE FIRMA (Evita hoja en blanco) ---
+    if pdf.get_y() > 240:
         pdf.add_page()
         pdf.ln(10)
-        signature_base_y = pdf.get_y()
-        sig_block_breaks = True
-    else:
-        pdf.set_y(-60)
-        signature_base_y = pdf.get_y()
-        sig_block_breaks = False
-
-    logo_footer = encontrar_imagen("logo") 
-    if logo_footer and not is_official: 
-        logo_w = 60
-        centered_x = (210 - logo_w) / 2
-        pdf.image(logo_footer, x=centered_x, y=signature_base_y, w=logo_w)
-        pdf.ln(2) 
-
-    if sig_block_breaks:
-        pdf.ln(5)
     else:
         pdf.set_y(-40)
     
@@ -535,6 +522,14 @@ def generar_pdf_exacto(patente, marca_modelo, cliente_nombre, cliente_rut, items
     pdf.cell(0, 6, f"Padre las Casas, {fecha}", 0, 1, 'C')
     firmante = "KAUFMANN S.A." if is_official else EMPRESA_NOMBRE
     pdf.cell(0, 5, firmante, 0, 1, 'C')
+    
+    # Línea inferior decorativa
+    pdf.set_y(-20); pdf.set_font('Arial', 'I', 8); pdf.line(10, pdf.get_y(), 200, pdf.get_y())
+    if not is_official:
+        legal = DIRECCION + " | Validez oferta: 15 días. Garantía: 3 meses."
+        pdf.multi_cell(0, 5, legal, 0, 'C')
+    else:
+        pdf.cell(0, 5, "Kaufmann S.A. - Líderes en Movilidad", 0, 1, 'C')
 
     if fotos_adjuntas:
         pdf.add_page()
