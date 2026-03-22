@@ -48,7 +48,7 @@ def obtener_y_registrar_correlativo(patente, cliente, total):
             
             datos = worksheet_hist.get_all_values()
             numero_actual = len(datos) 
-            correlativo_str = str(numero_actual)
+            correlativo_str = str(numero_actual) # SIN RELLENO DE CEROS
             ahora = datetime.now()
             worksheet_hist.append_row([ahora.strftime("%d/%m/%Y"), ahora.strftime("%H:%M:%S"), correlativo_str, patente, cliente, total])
             return correlativo_str
@@ -318,15 +318,14 @@ def encontrar_imagen(nombre_base):
         if os.path.exists(nombre_base.capitalize() + ext): return nombre_base.capitalize() + ext
     return None
 
+# SE ELIMINÓ TODO EL CSS RÍGIDO DEL CONTENEDOR PARA ARREGLAR EL MODO OSCURO NATIVO
 st.markdown(f"""
 <style>
-    .stTabs [aria-selected="true"] {{ background-color: {COLOR_PRIMARIO} !important; color: white !important; }}
-    .stContainer {{ border: 1px solid rgba(128, 128, 128, 0.2); border-radius: 8px; padding: 10px; margin-bottom: 5px; }}
+    .stTabs [aria-selected="true"] {{ background-color: {COLOR_PRIMARIO} !important; color: white !important; border-radius: 4px 4px 0px 0px; }}
     div[data-testid="stNumberInput"] input {{ max-width: 100px; text-align: center; }}
     input[type=number]::-webkit-inner-spin-button {{ -webkit-appearance: none; margin: 0; }}
-    .big-font {{ font-size:20px !important; font-weight: bold; }}
     .stButton > button[kind="primary"] {{ background-color: {COLOR_PRIMARIO} !important; border-color: {COLOR_PRIMARIO} !important; color: white !important; font-weight: bold; }}
-    .stButton > button[kind="primary"]:hover {{ background-color: {COLOR_PRIMARIO} !important; opacity: 0.8; border-color: {COLOR_PRIMARIO} !important; }}
+    .stButton > button[kind="primary"]:hover {{ opacity: 0.8; }}
     div[data-baseweb="select"] input {{ pointer-events: none !important; }}
 </style>
 """, unsafe_allow_html=True)
@@ -373,25 +372,33 @@ class PDF(FPDF):
 
     def header(self):
         logo_path = encontrar_imagen("logo")
-        start_x = 10
         
+        # --- LÓGICA DE ENCABEZADO CORREGIDA ---
         if not self.is_official and logo_path and os.path.exists(logo_path):
-            self.image(logo_path, x=10, y=8, w=60)
-            start_x = 75
-        elif self.logo_header and os.path.exists(self.logo_header):
-            self.image(self.logo_header, x=10, y=8, w=30)
-            start_x = 45
-        
-        self.set_xy(start_x, 10); self.set_font('Arial', 'B', 16)
-        empresa = "KAUFMANN S.A." if self.is_official else EMPRESA_NOMBRE
-        self.cell(0, 10, empresa, 0, 1, 'L')
-        self.set_xy(start_x, 18); self.set_font('Arial', '', 9)
-        if not self.is_official:
-            self.cell(0, 5, f"RUT: {RUT_EMPRESA} | {TELEFONO}", 0, 1, 'L')
-            self.set_xy(start_x, 23); self.cell(0, 5, EMAIL, 0, 1, 'L')
+            # Si hay logo y NO es oficial, dibujamos el logo en la izquierda (ancho grande) y OMITIMOS el texto duplicado
+            self.image(logo_path, x=10, y=8, w=90)
         else:
-            self.cell(0, 5, "Repuestos y Servicio Técnico Mercedes-Benz", 0, 1, 'L')
+            # Si es oficial o no hay logo, escribimos el texto a la izquierda
+            if self.logo_header and os.path.exists(self.logo_header):
+                self.image(self.logo_header, x=10, y=8, w=30)
+                self.set_xy(45, 10)
+            else:
+                self.set_xy(10, 10)
+                
+            self.set_font('Arial', 'B', 16)
+            empresa = "KAUFMANN S.A." if self.is_official else EMPRESA_NOMBRE
+            self.cell(0, 10, empresa, 0, 1, 'L')
+            
+            self.set_x(45 if self.logo_header else 10)
+            self.set_font('Arial', '', 9)
+            if not self.is_official:
+                self.cell(0, 5, f"RUT: {RUT_EMPRESA} | {TELEFONO}", 0, 1, 'L')
+                self.set_x(45 if self.logo_header else 10)
+                self.cell(0, 5, EMAIL, 0, 1, 'L')
+            else:
+                self.cell(0, 5, "Repuestos y Servicio Técnico Mercedes-Benz", 0, 1, 'L')
         
+        # --- CAJA DE CORRELATIVO ROJA ---
         self.set_xy(130, 10)
         self.set_text_color(220, 0, 0) 
         self.set_draw_color(220, 0, 0)
@@ -412,7 +419,16 @@ class PDF(FPDF):
         self.ln(15)
 
     def footer(self):
-        pass # ELIMINADO PARA CONTROLAR EL FONDO DE FORMA MANUAL EN GENERAR_PDF
+        # Footer automático en cada página (Línea + Legal)
+        self.set_y(-20)
+        self.set_font('Arial', 'I', 8)
+        self.line(10, self.get_y(), 200, self.get_y())
+        self.ln(2)
+        if not self.is_official:
+            legal = DIRECCION + " | Validez oferta: 15 días. Garantía: 3 meses."
+            self.multi_cell(0, 4, legal, 0, 'C')
+        else:
+            self.cell(0, 4, "Kaufmann S.A. - Líderes en Movilidad", 0, 1, 'C')
 
 def generar_pdf_exacto(patente, marca_modelo, cliente_nombre, cliente_rut, items, total_neto, is_official, watermark_file, estado_trabajo, usuario_final_txt, observaciones, correlativo, fotos_adjuntas):
     pdf = PDF(logo_header=watermark_file, correlativo=correlativo)
@@ -437,7 +453,7 @@ def generar_pdf_exacto(patente, marca_modelo, cliente_nombre, cliente_rut, items
         if is_last: pdf.line(10, max_y, 200, max_y)
         pdf.set_xy(10, max_y)
 
-    pdf.set_y(55) 
+    pdf.set_y(45) 
     pdf.set_font('Arial', 'B', 10)
     pdf.set_fill_color(10, 37, 64) 
     pdf.set_text_color(255, 255, 255)
@@ -508,28 +524,21 @@ def generar_pdf_exacto(patente, marca_modelo, cliente_nombre, cliente_rut, items
     pdf.set_text_color(0, 0, 0)
 
     if observaciones:
-        pdf.ln(10); pdf.set_font('Arial', 'B', 9); pdf.cell(0, 6, "OBSERVACIONES / NOTAS:", 0, 1)
+        pdf.ln(8); pdf.set_font('Arial', 'B', 9); pdf.cell(0, 6, "OBSERVACIONES / NOTAS:", 0, 1)
         pdf.set_font('Arial', '', 9); pdf.multi_cell(0, 5, observaciones, 0, 'L')
 
-    # --- CONTROL MANUAL DE FIRMA (Evita hoja en blanco) ---
+    # --- FIRMA INTELIGENTE (SIN LOGO EXTRA) ---
     if pdf.get_y() > 240:
         pdf.add_page()
-        pdf.ln(10)
     else:
-        pdf.set_y(-40)
-    
+        pdf.ln(15)
+
     fecha = datetime.now().strftime('%d-%m-%Y')
+    pdf.set_font('Arial', '', 10)
     pdf.cell(0, 6, f"Padre las Casas, {fecha}", 0, 1, 'C')
     firmante = "KAUFMANN S.A." if is_official else EMPRESA_NOMBRE
+    pdf.set_font('Arial', 'B', 10)
     pdf.cell(0, 5, firmante, 0, 1, 'C')
-    
-    # Línea inferior decorativa
-    pdf.set_y(-20); pdf.set_font('Arial', 'I', 8); pdf.line(10, pdf.get_y(), 200, pdf.get_y())
-    if not is_official:
-        legal = DIRECCION + " | Validez oferta: 15 días. Garantía: 3 meses."
-        pdf.multi_cell(0, 5, legal, 0, 'C')
-    else:
-        pdf.cell(0, 5, "Kaufmann S.A. - Líderes en Movilidad", 0, 1, 'C')
 
     if fotos_adjuntas:
         pdf.add_page()
