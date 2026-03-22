@@ -75,62 +75,63 @@ def detectar_cliente_automatico(patente_input):
         return hospital, tipo
     return None, None
 
-DATOS_MAESTROS = """Categoria,Trabajo,Costo_SSAS,Venta_SSAS,Costo_Hosp,Venta_Hosp,Costo_Gend,Venta_Gend
-Cabina y Tablero,Reparación circuito eléctrico tablero,180000,252000,189000,264600,215800,291330
-Equipamiento y Radio,Cambiar sirena y parlante con accesorios,893700,1161810,600000,780000,895670,1164371
-Cabina y Tablero,Reparación eléctrica Balizas/Sirena/Luces,280000,392000,294000,411600,280000,378000
-Equipamiento y Radio,Cambiar inversor de corriente (2500W),845000,1098500,887250,1153425,895400,1164020
-Luces y Exterior,Cambio foco perimetral,195000,273000,204750,276412.5,212630,287051
-Luces y Exterior,Cambio foco escena,195000,273000,204750,276412.5,212630,287051
-Luces y Exterior,Cambio foco faenero,74900,108605,78645,114035.25,74900,108605
-Luces y Exterior,Cambio baliza barral doble LED,1485700,1931410,1559985,2027980.5,1505300,1956890
-Luces y Exterior,Cambio focos iluminación interior (x unidad),68900,99905,72345,104900.25,68600,99470
-Luces y Exterior,Instalación focos adicionales LED (Kit Neblineros),0,0,0,0,125500,175700
-Seguridad y Calabozos,Reparación sistema tecno vigilancia (Cámaras),0,0,0,0,290000,391500
-Luces y Exterior,Instalación alarma advertencia retroceso,0,0,0,0,79300,114985
-Climatización y Aire,Cambio control de calefacción,0,0,0,0,145200,203280
-Climatización y Aire,Cambiar llave de paso de calefacción,0,0,0,0,95600,138620
-Climatización y Aire,Reparación de sistema de calefacción,0,0,0,0,290000,391500
-Climatización y Aire,Carga Aire Acondicionado,45000,63000,47250,66150,60000,87000
-Climatización y Aire,Cambio de compresor A/C,0,0,0,0,580900,755170
-Climatización y Aire,Reparación sistema eléctrico A/C,0,0,0,0,290000,391500
-Climatización y Aire,Cambio de presostato sistema A/C,0,0,0,0,145000,203000
-Climatización y Aire,Cambiar mangueras de A/C,0,0,0,0,90000,130500
-Climatización y Aire,Reparar línea de A/C,0,0,0,0,180000,252000
-Climatización y Aire,Radiador de aire acondicionado,0,0,0,0,350000,472500
-Climatización y Aire,Cambio filtro deshidratante,0,0,0,0,450000,607500
-Climatización y Aire,Cambio válvula de expansión,0,0,0,0,165000,231000
-Climatización y Aire,Reparación de evaporador,0,0,0,0,480000,648000
-Climatización y Aire,Cambio de evaporador,0,0,0,0,480000,648000
-Carrocería y Vidrios,Lámina seguridad transparente parabrisas (4 micras),120000,168000,126000,176400,140000,196000
-Carrocería y Vidrios,Lámina seguridad 8 micras color (Ventana Puerta),75000,108750,78750,114187.5,75000,101500
-Carrocería y Vidrios,Grabado de patente (Parabrisas/Ventanas/Espejos) x unidad,0,0,0,0,10000,14500
-Interior Sanitario,Goma para piso interior cabina (x metro),45000,63000,47250,66150,45000,65250
-Asientos y Tapiz,Reparación de tapices de asientos,65000,91000,68250,95550,65000,94250
-Asientos y Tapiz,Cambio tapices asientos cabina y calabozos,130000,182000,136500,191100,130000,182000
-Climatización y Aire,Extractores de aire (calabozo),390000,546000,409500,573300,390000,526500
-Carrocería y Vidrios,Servicio Ploteo emblemas corporativos (x pieza),60000,84000,63000,88200,65000,94250
-Seguridad y Calabozos,Reparación/Acondicionamiento Calabozos (m2),120000,168000,126000,176400,120000,168000
-Seguridad y Calabozos,Modificaciones estructuras de móviles (m2),120000,168000,126000,176400,120000,168000
-Seguridad y Calabozos,Protecciones metálicas/Mallas (m2),120000,168000,126000,176400,120000,168000
-Interior Sanitario,Reparar línea de oxígeno central (x línea),180000,252000,189000,264600,180000,252000
-Interior Sanitario,Reparar línea de aspiración paciente (x línea),165000,231000,173250,242550,180000,252000
-Asientos y Tapiz,Tapizado de asiento de paramédico,125000,175000,131250,183750,130000,182000
-Asientos y Tapiz,Tapizado de asiento longitudinal,90000,130500,94500,137025,130000,182000
-Asientos y Tapiz,Cambio de asiento de paramédico,475800,642330,499590,674446.5,495000,668250
-Asientos y Tapiz,Cambio de asiento longitudinal,160000,224000,168000,235200,210000,283500
-Camilla,Tapizado de colchoneta de camilla,120000,168000,126000,176400,126000,176400
-Carrocería y Vidrios,Cambio de vidrio de puerta Corredera lateral,290000,391500,304500,411075,290000,391500
-Carrocería y Vidrios,Láminas Seguridad 10 micras (Ventanas),75000,108750,78750,114187.5,75000,108750
-Interior Sanitario,Cambio de luces interiores de gabinete sanitario,58000,84100,60900,88305,58000,84100
-Interior Sanitario,Cambiar conjunto motor A/C gabinete,765000,994500,803250,1044225,765000,994500
-Equipamiento y Radio,Instalar Radio Transmisor Antena y acc.,1143650,1486745,1200832.5,1561082.25,1143650,1486745
-Equipamiento y Radio,Cambiar botonera accesorios emergencia,28900,41905,30345,44000.25,28900,41905
-Camilla,Cambiar colchoneta de camilla,90000,130500,94500,137025,90000,130500
-Camilla,Reparar Camilla (respaldo elevación),345800,466830,363090,490171.5,345800,466830
-Camilla,Reparar Camilla (vástagos y pasadores),165765,232071,174053,243675,165765,232071
-Camilla,Cambiar 1 Rueda de Camilla,135800,190120,142590,199626,135800,190120
-Camilla,Aceitar y lubricar partes articuladas camilla,90000,130500,94500,137025,90000,130500"""
+# DATOS MAESTROS LIMPIOS (Solo con Costos)
+DATOS_MAESTROS = """Categoria,Trabajo,Costo_SSAS,Costo_Hosp,Costo_Gend
+Cabina y Tablero,Reparación circuito eléctrico tablero,180000,189000,215800
+Equipamiento y Radio,Cambiar sirena y parlante con accesorios,893700,600000,895670
+Cabina y Tablero,Reparación eléctrica Balizas/Sirena/Luces,280000,294000,280000
+Equipamiento y Radio,Cambiar inversor de corriente (2500W),845000,887250,895400
+Luces y Exterior,Cambio foco perimetral,195000,204750,212630
+Luces y Exterior,Cambio foco escena,195000,204750,212630
+Luces y Exterior,Cambio foco faenero,74900,78645,74900
+Luces y Exterior,Cambio baliza barral doble LED,1485700,1559985,1505300
+Luces y Exterior,Cambio focos iluminación interior (x unidad),68900,72345,68600
+Luces y Exterior,Instalación focos adicionales LED (Kit Neblineros),0,0,125500
+Seguridad y Calabozos,Reparación sistema tecno vigilancia (Cámaras),0,0,290000
+Luces y Exterior,Instalación alarma advertencia retroceso,0,0,79300
+Climatización y Aire,Cambio control de calefacción,0,0,145200
+Climatización y Aire,Cambiar llave de paso de calefacción,0,0,95600
+Climatización y Aire,Reparación de sistema de calefacción,0,0,290000
+Climatización y Aire,Carga Aire Acondicionado,45000,47250,60000
+Climatización y Aire,Cambio de compresor A/C,0,0,580900
+Climatización y Aire,Reparación sistema eléctrico A/C,0,0,290000
+Climatización y Aire,Cambio de presostato sistema A/C,0,0,145000
+Climatización y Aire,Cambiar mangueras de A/C,0,0,90000
+Climatización y Aire,Reparar línea de A/C,0,0,180000
+Climatización y Aire,Radiador de aire acondicionado,0,0,350000
+Climatización y Aire,Cambio filtro deshidratante,0,0,450000
+Climatización y Aire,Cambio válvula de expansión,0,0,165000
+Climatización y Aire,Reparación de evaporador,0,0,480000
+Climatización y Aire,Cambio de evaporador,0,0,480000
+Carrocería y Vidrios,Lámina seguridad transparente parabrisas (4 micras),120000,126000,140000
+Carrocería y Vidrios,Lámina seguridad 8 micras color (Ventana Puerta),75000,78750,75000
+Carrocería y Vidrios,Grabado de patente (Parabrisas/Ventanas/Espejos) x unidad,0,0,10000
+Interior Sanitario,Goma para piso interior cabina (x metro),45000,47250,45000
+Asientos y Tapiz,Reparación de tapices de asientos,65000,68250,65000
+Asientos y Tapiz,Cambio tapices asientos cabina y calabozos,130000,136500,130000
+Climatización y Aire,Extractores de aire (calabozo),390000,409500,390000
+Carrocería y Vidrios,Servicio Ploteo emblemas corporativos (x pieza),60000,63000,65000
+Seguridad y Calabozos,Reparación/Acondicionamiento Calabozos (m2),120000,126000,120000
+Seguridad y Calabozos,Modificaciones estructuras de móviles (m2),120000,126000,120000
+Seguridad y Calabozos,Protecciones metálicas/Mallas (m2),120000,126000,120000
+Interior Sanitario,Reparar línea de oxígeno central (x línea),180000,189000,180000
+Interior Sanitario,Reparar línea de aspiración paciente (x línea),165000,173250,180000
+Asientos y Tapiz,Tapizado de asiento de paramédico,125000,131250,130000
+Asientos y Tapiz,Tapizado de asiento longitudinal,90000,94500,130000
+Asientos y Tapiz,Cambio de asiento de paramédico,475800,499590,495000
+Asientos y Tapiz,Cambio de asiento longitudinal,160000,168000,210000
+Camilla,Tapizado de colchoneta de camilla,120000,126000,126000
+Carrocería y Vidrios,Cambio de vidrio de puerta Corredera lateral,290000,304500,290000
+Carrocería y Vidrios,Láminas Seguridad 10 micras (Ventanas),75000,78750,75000
+Interior Sanitario,Cambio de luces interiores de gabinete sanitario,58000,60900,58000
+Interior Sanitario,Cambiar conjunto motor A/C gabinete,765000,803250,765000
+Equipamiento y Radio,Instalar Radio Transmisor Antena y acc.,1143650,1200832.5,1143650
+Equipamiento y Radio,Cambiar botonera accesorios emergencia,28900,30345,28900
+Camilla,Cambiar colchoneta de camilla,90000,94500,90000
+Camilla,Reparar Camilla (respaldo elevación),345800,363090,345800
+Camilla,Reparar Camilla (vástagos y pasadores),165765,174053,165765
+Camilla,Cambiar 1 Rueda de Camilla,135800,142590,135800
+Camilla,Aceitar y lubricar partes articuladas camilla,90000,94500,90000"""
 
 @st.cache_data(ttl=60)
 def cargar_datos():
@@ -143,7 +144,16 @@ def cargar_datos():
                 df_init = pd.read_csv(io.StringIO(DATOS_MAESTROS))
                 sheet.update([df_init.columns.values.tolist()] + df_init.values.tolist())
                 return df_init
-            return pd.DataFrame(data)
+            
+            df = pd.DataFrame(data)
+            
+            # --- AUTO-REPARADOR DE BASE DE DATOS ---
+            if 'Venta_SSAS' in df.columns:
+                df = df.drop(columns=['Venta_SSAS', 'Venta_Hosp', 'Venta_Gend'], errors='ignore')
+                sheet.clear()
+                sheet.update([df.columns.values.tolist()] + df.values.tolist())
+                
+            return df
         except: return pd.read_csv(io.StringIO(DATOS_MAESTROS))
     return pd.read_csv(io.StringIO(DATOS_MAESTROS))
 
@@ -152,8 +162,11 @@ def guardar_nuevo_item(categoria, nombre, costo):
     if client:
         try:
             sheet = client.open(NOMBRE_HOJA_GOOGLE).sheet1
-            venta_ssas = costo * 1.40; costo_hosp = costo * 1.05; venta_hosp = venta_ssas * 1.05; costo_gend = costo; venta_gend = costo * 1.40 
-            sheet.append_row([categoria, nombre, costo, venta_ssas, costo_hosp, venta_hosp, costo_gend, venta_gend])
+            # Se guarda exclusivamente el costo puro
+            costo_ssas = costo
+            costo_hosp = costo * 1.05
+            costo_gend = costo
+            sheet.append_row([categoria, nombre, costo_ssas, costo_hosp, costo_gend])
             st.cache_data.clear(); return True
         except: return False
     return False
@@ -187,7 +200,6 @@ def encontrar_imagen(nombre_base):
         if os.path.exists(nombre_base.capitalize() + ext): return nombre_base.capitalize() + ext
     return None
 
-# CORRECCIÓN DE MODO OSCURO Y HACK TECLADO
 st.markdown(f"""
 <style>
     .stTabs [aria-selected="true"] {{ background-color: {COLOR_PRIMARIO} !important; color: white !important; }}
@@ -308,8 +320,10 @@ def generar_pdf_exacto(patente, modelo, cliente_nombre, items, total_neto, is_of
     pdf.set_text_color(0,0,0); pdf.set_font('Arial', '', 9)
 
     for item in items:
-        unit = item['Unitario_Venta'] if is_official else item['Unitario_Costo']
-        tot = item['Total_Venta'] if is_official else item['Total_Costo']
+        # Ahora unit y tot siempre usan el valor real de Costo, sin importar is_official
+        unit = item['Unitario_Costo']
+        tot = item['Total_Costo']
+        
         x = pdf.get_x(); y = pdf.get_y()
         pdf.multi_cell(100, 6, item['Descripción'], 1, 'L')
         h = pdf.get_y() - y
@@ -419,7 +433,6 @@ if st.session_state.paso_actual == 1:
         
         patente = st.text_input("Ingrese Patente", placeholder="Ej: HX-RP10", key="input_patente_inicio").upper()
         
-        # Lógica de detección en vivo
         auto_index = 0
         usuario_detectado = None
         if patente:
@@ -501,7 +514,7 @@ elif st.session_state.paso_actual == 2:
                 if 'lista_particular' not in st.session_state: st.session_state.lista_particular = []
                 if st.button("Agregar Ítem"):
                     if d_m and q_m > 0 and p_m > 0:
-                        st.session_state.lista_particular.append({"Descripción": d_m, "Cantidad": q_m, "Unitario_Costo": p_m, "Total_Costo": p_m*q_m, "Unitario_Venta": p_m*1.35, "Total_Venta": (p_m*1.35)*q_m})
+                        st.session_state.lista_particular.append({"Descripción": d_m, "Cantidad": q_m, "Unitario_Costo": p_m, "Total_Costo": p_m*q_m})
                         st.success("Agregado")
                 if st.session_state.lista_particular:
                     st.markdown("#### Ítems Agregados:")
@@ -511,9 +524,9 @@ elif st.session_state.paso_actual == 2:
                     seleccion_final = st.session_state.lista_particular
     else:
         tabs = st.tabs([f"{emojis.get(c, '🔧')} {c}" for c in categorias_a_mostrar] + ["➕ Manual (Temp)"])
-        if tipo_cliente == "SSAS (Servicio Salud)": col_c_db = 'Costo_SSAS'; col_v_db = 'Venta_SSAS'
-        elif tipo_cliente == "Hospital Temuco": col_c_db = 'Costo_Hosp'; col_v_db = 'Venta_Hosp'
-        else: col_c_db = 'Costo_Gend'; col_v_db = 'Venta_Gend'
+        if tipo_cliente == "SSAS (Servicio Salud)": col_c_db = 'Costo_SSAS'
+        elif tipo_cliente == "Hospital Temuco": col_c_db = 'Costo_Hosp'
+        else: col_c_db = 'Costo_Gend'
 
         for i, cat in enumerate(categorias_a_mostrar):
             with tabs[i]:
@@ -528,11 +541,19 @@ elif st.session_state.paso_actual == 2:
                             key_input = f"q_{row['Trabajo']}_{index}"
                             val = st.session_state.get(key_input, 0)
                             qty = c2.number_input("", 0, 20, value=val, key=key_input, label_visibility="collapsed")
+                            
+                            precio_costo = float(row[col_c_db])
+                            
                             with c3:
-                                if is_admin: st.caption(f"V: {format_clp(row[col_v_db])}"); st.caption(f"C: {format_clp(row[col_c_db])}")
-                                else: st.markdown(f"**{format_clp(row[col_c_db])}**")
+                                st.markdown(f"**{format_clp(precio_costo)}**")
+                                
                             if qty > 0:
-                                seleccion_final.append({"Descripción": row['Trabajo'], "Cantidad": qty, "Unitario_Costo": row[col_c_db], "Total_Costo": row[col_c_db]*qty, "Unitario_Venta": row[col_v_db], "Total_Venta": row[col_v_db]*qty})
+                                seleccion_final.append({
+                                    "Descripción": row['Trabajo'], 
+                                    "Cantidad": qty, 
+                                    "Unitario_Costo": precio_costo, 
+                                    "Total_Costo": precio_costo * qty
+                                })
 
         with tabs[-1]:
             with st.container():
@@ -544,7 +565,7 @@ elif st.session_state.paso_actual == 2:
                 p_m = c3.number_input("Precio Unitario ($)", min_value=0, step=5000)
                 if st.button("Agregar Ítem Manual"):
                     if d_m and p_m > 0:
-                        st.session_state.items_manuales_extra.append({"Descripción": f"(Extra) {d_m}", "Cantidad": q_m, "Unitario_Costo": p_m, "Total_Costo": p_m * q_m, "Unitario_Venta": p_m * 1.35, "Total_Venta": (p_m * 1.35) * q_m})
+                        st.session_state.items_manuales_extra.append({"Descripción": f"(Extra) {d_m}", "Cantidad": q_m, "Unitario_Costo": p_m, "Total_Costo": p_m * q_m})
                         st.success(f"Agregado: {d_m}")
                 if st.session_state.items_manuales_extra:
                     st.markdown("---"); st.markdown("###### Ítems Manuales:")
@@ -555,19 +576,12 @@ elif st.session_state.paso_actual == 2:
     if seleccion_final:
         st.markdown("---")
         total_costo = sum(x['Total_Costo'] for x in seleccion_final)
-        total_venta = sum(x['Total_Venta'] for x in seleccion_final)
+        
         st.subheader("📊 Resumen Final")
-        if is_admin:
-            k1, k2, k3, k4 = st.columns(4)
-            k1.metric("Costo Neto", format_clp(total_costo))
-            k2.metric("Venta Neta", format_clp(total_venta))
-            iva = total_venta * 0.19; k3.metric("IVA (19%)", format_clp(iva))
-            total_final = total_venta + iva; k4.metric("Total Factura", format_clp(total_final))
-        else:
-            k1, k2, k3 = st.columns(3)
-            k1.metric("Neto", format_clp(total_costo))
-            iva = total_costo * 0.19; k2.metric("IVA (19%)", format_clp(iva))
-            total_final = total_costo + iva; k3.metric("TOTAL A PAGAR", format_clp(total_final))
+        k1, k2, k3 = st.columns(3)
+        k1.metric("Neto", format_clp(total_costo))
+        iva = total_costo * 0.19; k2.metric("IVA (19%)", format_clp(iva))
+        total_final = total_costo + iva; k3.metric("TOTAL A PAGAR", format_clp(total_final))
 
         observaciones_txt = st.text_area("Notas / Observaciones:", height=100)
         st.markdown("### 📸 Fotografías")
@@ -578,7 +592,8 @@ elif st.session_state.paso_actual == 2:
             if st.button("💾 FINALIZAR Y GENERAR PRESUPUESTO", type="primary", use_container_width=True):
                 correlativo = obtener_y_registrar_correlativo(patente_input, usuario_final_txt, format_clp(total_final))
                 
-                if is_admin: pdf_bytes = generar_pdf_exacto(patente_input, "SPRINTER", usuario_final_txt, seleccion_final, total_venta, True, watermark_file, estado_trabajo, usuario_final_txt, observaciones_txt, correlativo, fotos_adjuntas)
+                # Se utiliza total_costo en todos los casos para asegurar limpieza
+                if is_admin: pdf_bytes = generar_pdf_exacto(patente_input, "SPRINTER", usuario_final_txt, seleccion_final, total_costo, True, watermark_file, estado_trabajo, usuario_final_txt, observaciones_txt, correlativo, fotos_adjuntas)
                 else: pdf_bytes = generar_pdf_exacto(patente_input, "SPRINTER", "Kaufmann S.A.", seleccion_final, total_costo, False, watermark_file, estado_trabajo, usuario_final_txt, observaciones_txt, correlativo, fotos_adjuntas)
                 
                 st.session_state['presupuesto_generado'] = {'pdf': pdf_bytes, 'nombre': f"Presupuesto {correlativo} - {patente_input}.pdf"}
