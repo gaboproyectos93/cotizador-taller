@@ -11,6 +11,7 @@ import gspread
 import re
 from oauth2client.service_account import ServiceAccountCredentials
 from PIL import Image, ImageOps
+import json
 
 # ==========================================
 # 1. CONFIGURACIÓN Y CONEXIÓN
@@ -47,9 +48,7 @@ def obtener_y_registrar_correlativo(patente, cliente, total):
             
             datos = worksheet_hist.get_all_values()
             numero_actual = len(datos) 
-            # SE ELIMINÓ EL RELLENO DE CEROS (zfill). AHORA MOSTRARÁ N° 63 EN VEZ DE 000063
             correlativo_str = str(numero_actual)
-            
             ahora = datetime.now()
             worksheet_hist.append_row([ahora.strftime("%d/%m/%Y"), ahora.strftime("%H:%M:%S"), correlativo_str, patente, cliente, total])
             return correlativo_str
@@ -63,7 +62,6 @@ def guardar_borrador_nube():
         sheet = client.open(NOMBRE_HOJA_GOOGLE)
         try: ws = sheet.worksheet("Borrador")
         except: ws = sheet.add_worksheet(title="Borrador", rows="2", cols="2")
-        
         keys_to_save = ['paso_actual', 'lista_particular', 'items_manuales_extra']
         datos = {k: v for k, v in st.session_state.items() if k.endswith('_confirmado') or k.endswith('_confirmada') or k in keys_to_save or k.startswith('q_')}
         ws.update_acell('A1', json.dumps(datos))
@@ -178,13 +176,11 @@ def cargar_datos():
                 df_init = pd.read_csv(io.StringIO(DATOS_MAESTROS))
                 sheet.update([df_init.columns.values.tolist()] + df_init.values.tolist())
                 return df_init
-            
             df = pd.DataFrame(data)
             if 'Venta_SSAS' in df.columns:
                 df = df.drop(columns=['Venta_SSAS', 'Venta_Hosp', 'Venta_Gend'], errors='ignore')
                 sheet.clear()
                 sheet.update([df.columns.values.tolist()] + df.values.tolist())
-                
             return df
         except: return pd.read_csv(io.StringIO(DATOS_MAESTROS))
     return pd.read_csv(io.StringIO(DATOS_MAESTROS))
@@ -212,7 +208,6 @@ TELEFONO = "+56 9 8922 0616"
 EMAIL = "c.h.servicioautomotriz@gmail.com"
 
 COLOR_PRIMARIO = "#0A2540" 
-COLOR_SECUNDARIO = "#00A4E4" 
 
 def format_clp(value):
     try: return f"${float(value):,.0f}".replace(",", ".")
@@ -240,7 +235,7 @@ st.markdown(f"""
     input[type=number]::-webkit-inner-spin-button {{ -webkit-appearance: none; margin: 0; }}
     .big-font {{ font-size:20px !important; font-weight: bold; }}
     .stButton > button[kind="primary"] {{ background-color: {COLOR_PRIMARIO} !important; border-color: {COLOR_PRIMARIO} !important; color: white !important; font-weight: bold; }}
-    .stButton > button[kind="primary"]:hover {{ background-color: {COLOR_SECUNDARIO} !important; border-color: {COLOR_SECUNDARIO} !important; }}
+    .stButton > button[kind="primary"]:hover {{ background-color: {COLOR_PRIMARIO} !important; opacity: 0.8; border-color: {COLOR_PRIMARIO} !important; }}
     div[data-baseweb="select"] input {{ pointer-events: none !important; }}
 </style>
 """, unsafe_allow_html=True)
@@ -259,9 +254,9 @@ def abrir_calculadora():
         .grid {{ display: grid; grid-template-columns: repeat(4, 1fr); gap: 5px; }}
         button {{ padding: 10px; border: none; border-radius: 5px; font-size: 14px; font-weight: bold; cursor: pointer; transition: 0.1s; }}
         .num {{ background: #555; color: white; }} .num:hover {{ background: #666; }}
-        .op {{ background: {COLOR_SECUNDARIO}; color: white; }} .op:hover {{ background: {COLOR_PRIMARIO}; }}
+        .op {{ background: #eee; color: black; }} .op:hover {{ background: #d4d4d4; }}
         .clear {{ background: #a5a5a5; color: black; }} .clear:hover {{ background: #d4d4d4; }}
-        .eq {{ background: {COLOR_PRIMARIO}; color: white; grid-column: span 2; }} .eq:hover {{ background: {COLOR_SECUNDARIO}; }}
+        .eq {{ background: {COLOR_PRIMARIO}; color: white; grid-column: span 2; }} .eq:hover {{ opacity: 0.8; }}
     </style></head><body>
     <div class="calculator"><div class="display" id="disp">0</div><div class="grid">
         <button class="clear" onclick="clr()">C</button><button class="clear" onclick="del()">⌫</button><button class="op" onclick="app('/')">÷</button><button class="op" onclick="app('*')">×</button>
@@ -320,9 +315,10 @@ class PDF(FPDF):
         self.ln(15)
 
     def footer(self):
+        # Footer standard a 20mm del fondo
         self.set_y(-20); self.set_font('Arial', 'I', 8); self.line(10, 277, 200, 277)
         if not self.is_official:
-            legal = "Validez oferta: 15 días. Garantía: 3 meses."
+            legal = DIRECCION + " | Validez oferta: 15 días. Garantía: 3 meses."
             self.multi_cell(0, 5, legal, 0, 'C')
         else:
             self.cell(0, 5, "Kaufmann S.A. - Líderes en Movilidad", 0, 1, 'C')
@@ -365,7 +361,7 @@ def generar_pdf_exacto(patente, modelo, cliente_nombre, items, total_neto, is_of
     # --- 1. TABLA DATOS DEL CLIENTE ---
     pdf.set_y(55) 
     pdf.set_font('Arial', 'B', 10)
-    pdf.set_fill_color(10, 37, 64) # Azul Marino (Color Primario)
+    pdf.set_fill_color(10, 37, 64) # Azul Marino Clínico (Color Primario)
     pdf.set_text_color(255, 255, 255) # Texto Blanco
     pdf.cell(190, 6, "  DATOS DEL CLIENTE", 1, 1, 'L', 1)
     pdf.set_text_color(0, 0, 0) # Reseteo a negro
@@ -386,7 +382,7 @@ def generar_pdf_exacto(patente, modelo, cliente_nombre, items, total_neto, is_of
     
     # --- 2. TABLA DATOS DEL VEHÍCULO ---
     pdf.set_font('Arial', 'B', 10)
-    pdf.set_fill_color(10, 37, 64) # Azul Marino
+    pdf.set_fill_color(10, 37, 64) # Azul Marino Clínico
     pdf.set_text_color(255, 255, 255)
     pdf.cell(190, 6, "  DATOS DEL VEHÍCULO", 1, 1, 'L', 1)
     pdf.set_text_color(0, 0, 0)
@@ -398,19 +394,21 @@ def generar_pdf_exacto(patente, modelo, cliente_nombre, items, total_neto, is_of
 
     # --- 3. TABLA DETALLE DE COTIZACIÓN ---
     pdf.set_font('Arial', 'B', 9)
-    pdf.set_fill_color(0, 164, 228) # Celeste Médico (Color Secundario)
-    pdf.set_text_color(255, 255, 255)
+    # CORRECCIÓN DE COLOR: Mismo Azul Marino Clínico para el encabezado de detalles
+    pdf.set_fill_color(10, 37, 64) 
+    pdf.set_text_color(255, 255, 255) # Texto Blanco
     pdf.cell(115, 7, "Descripción", 1, 0, 'C', 1)
     pdf.cell(15, 7, "Cant.", 1, 0, 'C', 1)
     pdf.cell(30, 7, "Unitario", 1, 0, 'C', 1)
     pdf.cell(30, 7, "Total", 1, 1, 'C', 1)
-    pdf.set_text_color(0, 0, 0)
+    pdf.set_text_color(0, 0, 0) # Reseteo a negro
     
     pdf.set_font('Arial', '', 9)
     for item in items:
         unit = item['Unitario_Costo']
         tot = item['Total_Costo']
         x = pdf.get_x(); y = pdf.get_y()
+        # multi_cell para que el texto largo de la descripción fluya
         pdf.multi_cell(115, 6, item['Descripción'].upper(), 1, 'L')
         h = pdf.get_y() - y
         pdf.set_xy(x+115, y)
@@ -423,35 +421,68 @@ def generar_pdf_exacto(patente, modelo, cliente_nombre, items, total_neto, is_of
     iva = total_neto * 0.19; bruto = total_neto + iva
     
     # --- CUADRO DE TOTALES ALINEADO A LA DERECHA ---
-    pdf.set_x(140)
+    # Se ajusta la posición X para que encaje con el borde derecho de la tabla superior
+    totals_width = 60 # 30 label + 30 value
+    safe_margin_right = 200 -totals_width
+    pdf.set_x(safe_margin_right)
+    
     pdf.set_font('Arial', 'B', 9)
     pdf.cell(30, 6, "SUB TOTAL", 1, 0, 'L'); pdf.set_font('Arial', '', 9); pdf.cell(30, 6, format_clp(total_neto), 1, 1, 'R')
     
-    pdf.set_x(140)
+    pdf.set_x(safe_margin_right)
     pdf.set_font('Arial', 'B', 9); pdf.cell(30, 6, "I.V.A. (19%)", 1, 0, 'L'); pdf.set_font('Arial', '', 9); pdf.cell(30, 6, format_clp(iva), 1, 1, 'R')
     
-    pdf.set_x(140)
+    pdf.set_x(safe_margin_right)
     pdf.set_font('Arial', 'B', 10)
-    pdf.set_fill_color(10, 37, 64) # Celda Final Azul Marino
-    pdf.set_text_color(255, 255, 255)
+    # CORRECCIÓN DE COLOR Y TEXTO: Celda Final Azul Marino con Texto Blanco
+    pdf.set_fill_color(10, 37, 64) 
+    pdf.set_text_color(255, 255, 255) # Texto Blanco
     pdf.cell(30, 8, "TOTAL", 1, 0, 'L', 1); pdf.cell(30, 8, format_clp(bruto), 1, 1, 'R', 1)
-    pdf.set_text_color(0, 0, 0)
+    pdf.set_text_color(0, 0, 0) # Reseteo a negro
 
     if observaciones:
-        pdf.ln(8); pdf.set_font('Arial', 'B', 9); pdf.cell(0, 6, "OBSERVACIONES / NOTAS:", 0, 1)
+        # Añadimos ln(5) extra para separar observaciones de totales
+        pdf.ln(10); pdf.set_font('Arial', 'B', 9); pdf.cell(0, 6, "OBSERVACIONES / NOTAS:", 0, 1)
         pdf.set_font('Arial', '', 9); pdf.multi_cell(0, 5, observaciones, 0, 'L')
 
-    # --- ANCLAJE DE FIRMA Y LOGO AL FINAL DE LA PÁGINA ---
-    # Si la página ya está muy llena, creamos una nueva para que la firma no quede cortada
-    if pdf.get_y() > 220:
+    # --- SOLUCIÓN DE PAGING Y FIRMA (ANCLAJE INTELIGENTE) ---
+    # Calculamos la posición final deseada de la firma (Sticky bottom a -60)
+    # Si la página ya está llena, creamos una nueva, pero la firma se coloca relativamente cerca.
+    
+    break_point = 230 # Zona segura antes del fondo para decidir el salto inteligente
+    current_content_end = pdf.get_y()
+    sig_block_breaks = False
+    
+    if current_content_end > break_point:
+        # Necesitamos una página nueva por espacio, la firma NO va stuck a bottom
         pdf.add_page()
-        
-    pdf.set_y(-60) # Fija la posición a 60mm del borde inferior de la hoja
+        # En la nueva página, colocamos la firma arriba con unln(10)
+        pdf.ln(10)
+        signature_base_y = pdf.get_y()
+        sig_block_breaks = True
+    else:
+        # Espacio suficiente, forzamos firma stuck a bottom (Y=-60)
+        pdf.set_y(-60)
+        signature_base_y = pdf.get_y()
+        sig_block_breaks = False
+
     logo_footer = encontrar_imagen("logo") 
     if logo_footer and not is_official: 
-        pdf.image(logo_footer, x=75, y=pdf.get_y(), w=60)
-    
-    pdf.set_y(-40) # Fija la posición del texto a 40mm del borde inferior
+        # Centrado horizontal approx x=75
+        logo_w = 60
+        centered_x = (210 - logo_w) / 2
+        # y param explicit required for Sticky y positioning logic. doc check says uses current Y if omitted, set_y done. Let's use get_y() to be sure.
+        pdf.image(logo_footer, x=centered_x, y=signature_base_y, w=logo_w)
+        pdf.ln(2) # relative space after image (if breaks) or sig text determining y will handle next line.
+
+    if sig_block_breaks:
+        # Si saltó inteligentes, LN(5) extra después del logo
+        pdf.ln(5)
+    else:
+        # Si es sticky bottom, forzamos texto a -40
+        pdf.set_y(-40)
+
+    # Texto de fecha y firma relativo al current Y
     fecha = datetime.now().strftime('%d-%m-%Y')
     pdf.cell(0, 6, f"Padre las Casas, {fecha}", 0, 1, 'C')
     firmante = "KAUFMANN S.A." if is_official else EMPRESA_NOMBRE
@@ -663,21 +694,12 @@ elif st.session_state.paso_actual == 2:
                             with c1: st.markdown(f"**{row['Trabajo']}**")
                             key_input = f"q_{row['Trabajo']}_{index}"
                             val = st.session_state.get(key_input, 0)
-                            
                             qty = c2.number_input("", 0, 20, value=val, key=key_input, label_visibility="collapsed", on_change=guardar_borrador_nube)
-                            
                             precio_costo = float(row[col_c_db])
-                            
                             with c3:
                                 st.markdown(f"**{format_clp(precio_costo)}**")
-                                
                             if qty > 0:
-                                seleccion_final.append({
-                                    "Descripción": row['Trabajo'], 
-                                    "Cantidad": qty, 
-                                    "Unitario_Costo": precio_costo, 
-                                    "Total_Costo": precio_costo * qty
-                                })
+                                seleccion_final.append({"Descripción": row['Trabajo'], "Cantidad": qty, "Unitario_Costo": precio_costo, "Total_Costo": precio_costo * qty})
 
         with tabs[-1]:
             with st.container():
@@ -704,7 +726,6 @@ elif st.session_state.paso_actual == 2:
     if seleccion_final:
         st.markdown("---")
         total_costo = sum(x['Total_Costo'] for x in seleccion_final)
-        
         st.subheader("📊 Resumen Final")
         k1, k2, k3 = st.columns(3)
         k1.metric("Neto", format_clp(total_costo))
@@ -719,10 +740,8 @@ elif st.session_state.paso_actual == 2:
         if 'presupuesto_generado' not in st.session_state:
             if st.button("💾 FINALIZAR Y GENERAR PRESUPUESTO", type="primary", use_container_width=True):
                 correlativo = obtener_y_registrar_correlativo(patente_input, usuario_final_txt, format_clp(total_final))
-                
                 if is_admin: pdf_bytes = generar_pdf_exacto(patente_input, "SPRINTER", usuario_final_txt, seleccion_final, total_costo, True, watermark_file, estado_trabajo, usuario_final_txt, observaciones_txt, correlativo, fotos_adjuntas)
                 else: pdf_bytes = generar_pdf_exacto(patente_input, "SPRINTER", "Kaufmann S.A.", seleccion_final, total_costo, False, watermark_file, estado_trabajo, usuario_final_txt, observaciones_txt, correlativo, fotos_adjuntas)
-                
                 st.session_state['presupuesto_generado'] = {'pdf': pdf_bytes, 'nombre': f"Presupuesto {correlativo} - {patente_input}.pdf"}
                 limpiar_borrador_nube() 
                 st.rerun()
