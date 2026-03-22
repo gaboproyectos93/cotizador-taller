@@ -94,6 +94,39 @@ def limpiar_patente(texto):
     if not texto: return ""
     return re.sub(r'[^A-Z0-9]', '', texto.upper())
 
+@st.cache_data(ttl=3600)
+def cargar_base_vehiculos():
+    base_por_defecto = {
+        "--- Seleccione Marca ---": ["---"],
+        "Mercedes-Benz": ["Sprinter", "Vito", "Citan", "Clase A", "Clase C", "GLA", "GLC", "GLE"],
+        "Especiales / Conversiones": ["Carro de Arrastre", "Clínica Móvil", "Conversión a Ambulancia", "Oficina Móvil", "Remolque Especial"],
+        "Chevrolet": ["Sail", "Spark", "Tracker", "Colorado", "Silverado", "D-Max", "Captiva", "Onix", "Groove", "Spin", "N300", "Optra"],
+        "Toyota": ["Yaris", "Hilux", "RAV4", "Corolla", "Auris", "4Runner", "Fortuner", "Land Cruiser", "Prius", "Rush", "Urban Cruiser"],
+        "Hyundai": ["Accent", "Tucson", "Santa Fe", "Elantra", "Creta", "Grand i10", "H-1", "Porter", "Venue", "Kona", "Ioniq"],
+        "Kia": ["Morning", "Rio", "Cerato", "Sportage", "Sorento", "Frontier", "Soluto", "Sonet", "Niro", "Carnival", "Carens"],
+        "Nissan": ["Versa", "Sentra", "Qashqai", "X-Trail", "NP300", "Navara", "Kicks", "March", "Pathfinder", "Terrano", "Tiida"],
+        "Suzuki": ["Swift", "Baleno", "Vitara", "Grand Nomade", "Jimny", "Dzire", "S-Presso", "Ertiga", "Celerio", "Alto", "S-Cross"],
+        "Peugeot": ["208", "2008", "308", "3008", "5008", "Partner", "Boxer", "Expert", "Rifter"],
+        "Ford": ["Ranger", "F-150", "Territory", "Escape", "Explorer", "Edge", "Transit", "Ecosport", "Puma"]
+    }
+    try:
+        if os.path.exists("vehiculos.csv"):
+            df = pd.read_csv("vehiculos.csv", encoding='utf-8')
+            if 'Marca' in df.columns and 'Modelo' in df.columns:
+                base_csv = {"--- Seleccione Marca ---": ["---"]}
+                base_csv["Especiales / Conversiones"] = ["Carro de Arrastre", "Clínica Móvil", "Conversión a Ambulancia", "Oficina Móvil", "Remolque Especial"]
+                marcas = sorted([str(m) for m in df['Marca'].dropna().unique()])
+                for marca in marcas:
+                    if marca not in base_csv:
+                        modelos = df[df['Marca'] == marca]['Modelo'].dropna().tolist()
+                        base_csv[marca] = sorted(list(set([str(m) for m in modelos])))
+                return base_csv
+    except Exception as e:
+        pass 
+    return base_por_defecto
+
+BASE_VEHICULOS = cargar_base_vehiculos()
+
 @st.cache_data(ttl=60)
 def cargar_directorio_patentes():
     client = conectar_google_sheets()
@@ -217,8 +250,6 @@ def cargar_datos():
                 return df_init
             
             df = pd.DataFrame(data)
-            
-            # --- AUTO-REPARADOR Y REESTRUCTURADOR DE BASE DE DATOS ---
             cambios_realizados = False
             
             if 'Venta_SSAS' in df.columns:
@@ -227,14 +258,12 @@ def cargar_datos():
             
             if 'Costo_Hosp' in df.columns:
                 df.rename(columns={'Costo_Hosp': 'Costo_Hosp_Temuco'}, inplace=True)
-                # Clonar los precios de SSAS a las nuevas columnas de hospitales independientes
                 df['Costo_Hosp_Villarrica'] = df['Costo_SSAS']
                 df['Costo_Hosp_Lautaro'] = df['Costo_SSAS']
                 df['Costo_Hosp_Pitrufquen'] = df['Costo_SSAS']
                 cambios_realizados = True
                 
             if cambios_realizados:
-                # Reordenar las columnas al nuevo formato oficial
                 cols = ['Categoria', 'Trabajo', 'Costo_SSAS', 'Costo_Hosp_Temuco', 'Costo_Hosp_Villarrica', 'Costo_Hosp_Lautaro', 'Costo_Hosp_Pitrufquen', 'Costo_Gend']
                 df = df[[c for c in cols if c in df.columns]]
                 sheet.clear()
@@ -383,7 +412,7 @@ class PDF(FPDF):
         else:
             self.cell(0, 5, "Kaufmann S.A. - Líderes en Movilidad", 0, 1, 'C')
 
-def generar_pdf_exacto(patente, modelo, cliente_nombre, items, total_neto, is_official, watermark_file, estado_trabajo, usuario_final_txt, observaciones, correlativo, fotos_adjuntas):
+def generar_pdf_exacto(patente, marca_modelo, cliente_nombre, cliente_rut, items, total_neto, is_official, watermark_file, estado_trabajo, usuario_final_txt, observaciones, correlativo, fotos_adjuntas):
     pdf = PDF(logo_header=watermark_file, correlativo=correlativo)
     pdf.is_official = is_official 
     pdf.add_page(); pdf.set_auto_page_break(auto=True, margin=30) 
@@ -413,15 +442,17 @@ def generar_pdf_exacto(patente, modelo, cliente_nombre, items, total_neto, is_of
     pdf.cell(190, 6, "  DATOS DEL CLIENTE", 1, 1, 'L', 1)
     pdf.set_text_color(0, 0, 0)
     
-    nom = "KAUFMANN S.A." if not is_official else cliente_nombre
-    rut = "92.475.000-6" if not is_official else ""
-    us_final = usuario_final_txt if not is_official else ""
+    nom = usuario_final_txt if is_official else cliente_nombre
+    rut = "" if is_official else cliente_rut
+    us_final = "" if is_official else usuario_final_txt
     
     fila_dinamica(" Señor(es)", str(nom).upper(), " Fecha Emisión", datetime.now().strftime('%d/%m/%Y'))
-    if not is_official: fila_dinamica(" RUT", rut, " Usuario Final", str(us_final).upper(), is_last=True)
+    
+    if not is_official:
+        fila_dinamica(" RUT", str(rut).upper(), " Usuario Final", str(us_final).upper(), is_last=True)
     else:
-        if rut: fila_dinamica(" RUT", rut, "", "", is_last=True) 
-        else: fila_dinamica(" ", "", "", "", is_last=True)
+        if rut: fila_dinamica(" RUT", str(rut).upper(), "", "", is_last=True) 
+        else: pdf.line(10, pdf.get_y(), 200, pdf.get_y())
     pdf.ln(4)
     
     pdf.set_font('Arial', 'B', 10)
@@ -430,7 +461,7 @@ def generar_pdf_exacto(patente, modelo, cliente_nombre, items, total_neto, is_of
     pdf.cell(190, 6, "  DATOS DEL VEHÍCULO", 1, 1, 'L', 1)
     pdf.set_text_color(0, 0, 0)
     
-    fila_dinamica(" Marca / Modelo", f"MERCEDES-BENZ {str(modelo).upper()}", " Patente", str(patente).upper())
+    fila_dinamica(" Marca / Modelo", str(marca_modelo).upper(), " Patente", str(patente).upper())
     fila_dinamica(" Estado", str(estado_trabajo).upper(), "", "", is_last=True)
     pdf.ln(6)
 
@@ -478,24 +509,27 @@ def generar_pdf_exacto(patente, modelo, cliente_nombre, items, total_neto, is_of
         pdf.ln(10); pdf.set_font('Arial', 'B', 9); pdf.cell(0, 6, "OBSERVACIONES / NOTAS:", 0, 1)
         pdf.set_font('Arial', '', 9); pdf.multi_cell(0, 5, observaciones, 0, 'L')
 
-    if pdf.get_y() > 220:
+    if pdf.get_y() > 230:
         pdf.add_page()
+        pdf.ln(10)
+        signature_base_y = pdf.get_y()
+        sig_block_breaks = True
     else:
-        pdf.ln(15)
+        pdf.set_y(-60)
+        signature_base_y = pdf.get_y()
+        sig_block_breaks = False
 
-    start_sig_y = pdf.get_y()
     logo_footer = encontrar_imagen("logo") 
-    logo_h = 30
     if logo_footer and not is_official: 
         logo_w = 60
         centered_x = (210 - logo_w) / 2
-        try:
-            with Image.open(logo_footer) as img:
-                aspect = img.height / img.width
-                logo_h = logo_w * aspect
-        except: pass
-        pdf.image(logo_footer, x=centered_x, y=start_sig_y, w=logo_w)
-        pdf.set_y(start_sig_y + logo_h + 5)
+        pdf.image(logo_footer, x=centered_x, y=signature_base_y, w=logo_w)
+        pdf.ln(2) 
+
+    if sig_block_breaks:
+        pdf.ln(5)
+    else:
+        pdf.set_y(-40)
     
     fecha = datetime.now().strftime('%d-%m-%Y')
     pdf.cell(0, 6, f"Padre las Casas, {fecha}", 0, 1, 'C')
@@ -664,8 +698,58 @@ elif st.session_state.paso_actual == 2:
     elif tipo_cliente == "Cliente Particular": watermark_file = None; logo_header = None; categorias_a_mostrar = [] 
     else: watermark_file = encontrar_imagen("ambulancia"); logo_header = watermark_file; categorias_a_mostrar = df_precios['Categoria'].unique()
 
-    usuario_final_txt = st.text_input("Usuario Final / Hospital:", value=st.session_state.usuario_final_confirmado)
+    # --- DATOS DEL CLIENTE A FACTURAR ---
+    st.markdown("#### 🏢 Datos del Cliente a Facturar")
+    c_f1, c_f2, c_f3 = st.columns([2, 1, 2])
     
+    if tipo_cliente in ["SSAS (Servicio Salud)", "Hospital Temuco", "Hospital Villarrica", "Hospital Lautaro", "Hospital Pitrufquén", "Gendarmería de Chile"]:
+        def_cliente = "KAUFMANN S.A."
+        def_rut = "92.475.000-6"
+    else:
+        def_cliente = ""
+        def_rut = ""
+        
+    cliente_facturar = c_f1.text_input("Señor(es) / Razón Social", value=def_cliente, placeholder="Nombre de quien paga")
+    rut_facturar = c_f2.text_input("RUT", value=def_rut, placeholder="Opcional")
+    usuario_final_txt = c_f3.text_input("Usuario Final / Hospital", value=st.session_state.usuario_final_confirmado)
+    
+    # --- SELECTOR DINÁMICO DE VEHÍCULOS ---
+    st.markdown("#### 🚙 Datos Específicos del Vehículo")
+    c_v1, c_v2, c_v3 = st.columns(3)
+    
+    lista_marcas = list(BASE_VEHICULOS.keys())
+    if "--- AGREGAR OTRA MARCA ---" not in lista_marcas:
+        lista_marcas.append("--- AGREGAR OTRA MARCA ---")
+        
+    default_marca_index = 0
+    if tipo_cliente != "Cliente Particular" and "Mercedes-Benz" in lista_marcas:
+        default_marca_index = lista_marcas.index("Mercedes-Benz")
+
+    marca_sel = c_v1.selectbox("Marca", lista_marcas, index=default_marca_index, key="v_marca")
+    
+    if marca_sel == "--- AGREGAR OTRA MARCA ---":
+        marca_final = c_v1.text_input("Escriba la Marca:", placeholder="Ej: Motorhome", key="v_marca_man").upper()
+        modelos_lista = ["--- AGREGAR OTRO MODELO ---"]
+    else:
+        marca_final = marca_sel
+        modelos_lista = BASE_VEHICULOS.get(marca_sel, ["---"]).copy()
+        if "--- AGREGAR OTRO MODELO ---" not in modelos_lista:
+            modelos_lista.append("--- AGREGAR OTRO MODELO ---")
+    
+    default_modelo_index = 0
+    if tipo_cliente != "Cliente Particular" and "Sprinter" in modelos_lista:
+        default_modelo_index = modelos_lista.index("Sprinter")
+
+    modelo_sel = c_v2.selectbox("Modelo", modelos_lista, index=default_modelo_index, key="v_modelo")
+    
+    if modelo_sel == "--- AGREGAR OTRO MODELO ---":
+        modelo_final = c_v2.text_input("Escriba el Modelo:", placeholder="Ej: Ducato L3H2", key="v_modelo_man").upper()
+    else:
+        modelo_final = modelo_sel
+        
+    patente_sel = c_v3.text_input("Patente (Obligatoria)", value=patente_input, placeholder="Ej: ABCD12", key="v_pat")
+    st.markdown("---")
+
     emojis = { "Luces y Exterior": "💡", "Carrocería y Vidrios": "🚐", "Interior Sanitario": "🏥", "Climatización y Aire": "❄️",
         "Asientos y Tapiz": "💺", "Equipamiento y Radio": "📻", "Cabina y Tablero": "📟", "Camilla": "🚑", "Seguridad y Calabozos": "🔒"}
 
@@ -771,12 +855,18 @@ elif st.session_state.paso_actual == 2:
 
         if 'presupuesto_generado' not in st.session_state:
             if st.button("💾 FINALIZAR Y GENERAR PRESUPUESTO", type="primary", use_container_width=True):
-                correlativo = obtener_y_registrar_correlativo(patente_input, usuario_final_txt, format_clp(total_final))
+                correlativo = obtener_y_registrar_correlativo(patente_sel, usuario_final_txt, format_clp(total_final))
                 
-                if is_admin: pdf_bytes = generar_pdf_exacto(patente_input, "SPRINTER", usuario_final_txt, seleccion_final, total_costo, True, watermark_file, estado_trabajo, usuario_final_txt, observaciones_txt, correlativo, fotos_adjuntas)
-                else: pdf_bytes = generar_pdf_exacto(patente_input, "SPRINTER", "Kaufmann S.A.", seleccion_final, total_costo, False, watermark_file, estado_trabajo, usuario_final_txt, observaciones_txt, correlativo, fotos_adjuntas)
+                marca_modelo_pdf = f"{marca_final} {modelo_final}".replace("--- Seleccione Marca ---", "").replace("---", "").strip()
+                if not marca_modelo_pdf:
+                    marca_modelo_pdf = "NO ESPECIFICADO"
                 
-                st.session_state['presupuesto_generado'] = {'pdf': pdf_bytes, 'nombre': f"Presupuesto {correlativo} - {patente_input}.pdf"}
+                if is_admin: 
+                    pdf_bytes = generar_pdf_exacto(patente_sel, marca_modelo_pdf, cliente_facturar, rut_facturar, seleccion_final, total_costo, True, watermark_file, estado_trabajo, usuario_final_txt, observaciones_txt, correlativo, fotos_adjuntas)
+                else: 
+                    pdf_bytes = generar_pdf_exacto(patente_sel, marca_modelo_pdf, cliente_facturar, rut_facturar, seleccion_final, total_costo, False, watermark_file, estado_trabajo, usuario_final_txt, observaciones_txt, correlativo, fotos_adjuntas)
+                
+                st.session_state['presupuesto_generado'] = {'pdf': pdf_bytes, 'nombre': f"Presupuesto {correlativo} - {patente_sel}.pdf"}
                 limpiar_borrador_nube() 
                 st.rerun()
         else:
